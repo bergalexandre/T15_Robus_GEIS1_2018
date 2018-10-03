@@ -10,7 +10,7 @@ Date: 01 oct 2018
 #include <Arduino.h>
 #include <QueueList.h>
 
-#define ACTION_TYPE_ACCELERATION 0
+
 #define DELAY 50 // Delay in ms
 
 float leftSpeed;
@@ -84,6 +84,52 @@ class Acceleration : public Action{
 
 };
 
+class Rotation1Roue : public Action{
+public:
+bool isFirstTime;
+
+  int PulseCount;
+  int DoPulses;
+  Chrono chrono;
+
+  Rotation (int angle, int ID) : Action(ACTION_TYPE_ROTATION_1_ROUE){
+  pulseCount = 0;
+  DoPulses = angle * (2772/60160);
+  if(ID == RIGHT)
+    leftSpeed = 0;
+    else rightSpeed = 0;
+  }
+
+
+bool motion(){  
+  PulseCount += ENCODER_Read(ID);
+  
+  if (PulseCount < DoPulses){
+    if(ID == RIGHT)
+    leftSpeed = 0.5;
+    else rightSpeed = 0.5;
+    }
+  else if (PulseCount >= DoPulses){
+    if (ID == RIGHT)
+    rightSpeed = 0
+    else leftSpeed = 0;
+  }
+
+};
+
+//retourne distance parcourure en mm
+int32_t distancep(int ID)
+{
+    int32_t d = ENCODER_Read(ID)*(1/MOVE_PULSE_PER_TURN)*MOVE_WHEEL_DIAMETER*PI;
+    return d;
+};
+
+
+int32_t rotation(int angle, int ID){
+  while ENCODER_Read(ID) < (angle*2772/60160){
+    MOTOR_SetSpeed(ID, 0.5);
+  }
+};
 
 
 QueueList<Action*> actionQueue; // help : https://playground.arduino.cc/Code/QueueList

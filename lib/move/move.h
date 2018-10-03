@@ -10,22 +10,26 @@
  */
 
 /**
- * @def Diamètre de la roue en centimètre.
+ * @def Diamètre de la roue en millimetres.
  * 
  */
-#define MOVE_WHEEL_DIAMETER 7.7
+#define MOVE_WHEEL_DIAMETER 77
 
 /**
  * @def Nombre de "Pulse" que l'encodeur génère pour chaque tour de roue complet.
  * 
  */
-#define MOVE_PULSE_PER_TURN 250
+#define MOVE_PULSE_PER_TURN 3200
 
 /**
  * @def Différence permis en nombre de pulse avant de corriger la trajectoire.
  * 
  */
 #define MOVE_WHEEL_THRESHOLD 10
+
+
+#define ACTION_TYPE_ACCELERATION 0
+#define ACTION_TYPE_ROTATION_1_ROUE 0
 
 #define MOVE_NUMBER_OF_ENCODER 2
 #define MOVE_MASTER 1
