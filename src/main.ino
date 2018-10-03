@@ -9,7 +9,7 @@ Date: 01 oct 2018
 #include <LibRobus.h> 
 #include "move.h"
 
-#define ACTION_TYPE_ACCELERATION 0
+
 #define DELAY 50 // Delay in ms
 
 
@@ -36,6 +36,16 @@ float fSpeedAdjustment(){
   fAdjustement = i32DeltaPulse * MOVE_ADJUSTEMENT_FACTOR;
   return fAdjustement;
 }
+
+
+//retourne distance parcourure en mm
+int32_t distancep(int ID)
+{
+    int32_t d = ENCODER_Read(ID)*(1/MOVE_PULSE_PER_TURN)*MOVE_WHEEL_DIAMETER*PI;
+    return d;
+}
+
+
 
 
 uint32_t MOVE_getDistanceP(int ID)

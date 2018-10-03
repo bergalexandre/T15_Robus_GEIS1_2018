@@ -12,7 +12,11 @@
  */
 
 /**
+<<<<<<< HEAD
  * @def Diamètre de la roue en millimètre.
+=======
+ * @def Diamètre de la roue en millimetres.
+>>>>>>> 57fc3e9a1b3adeff7d0b4d53ed2ee63f4f290345
  * 
  */
 #define MOVE_WHEEL_DIAMETER 77
@@ -28,6 +32,10 @@
  * 
  */
 #define MOVE_WHEEL_MAX_ENCODER_DELTA 100
+
+
+#define ACTION_TYPE_ACCELERATION 0
+#define ACTION_TYPE_ROTATION_1_ROUE 0
 
 #define MOVE_NUMBER_OF_ENCODER 2
 #define MOVE_MASTER 1
