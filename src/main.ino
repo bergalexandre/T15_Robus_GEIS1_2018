@@ -85,8 +85,8 @@ class Acceleration : public Action{
 };
 
 class Rotation1Roue : public Action{
-public:
-bool isFirstTime;
+  public:
+  bool isFirstTime;
 
   int PulseCount;
   int DoPulses;
@@ -101,18 +101,18 @@ bool isFirstTime;
   }
 
 
-bool motion(){  
-  PulseCount += ENCODER_Read(ID);
-  
-  if (PulseCount < DoPulses){
-    if(ID == RIGHT)
-    leftSpeed = 0.5;
-    else rightSpeed = 0.5;
-    }
-  else if (PulseCount >= DoPulses){
-    if (ID == RIGHT)
-    rightSpeed = 0
-    else leftSpeed = 0;
+  bool motion(){  
+    PulseCount += ENCODER_Read(ID);
+
+    if (PulseCount < DoPulses){
+      if(ID == RIGHT)
+      leftSpeed = 0.5;
+      else rightSpeed = 0.5;
+      }
+    else if (PulseCount >= DoPulses){
+      if (ID == RIGHT)
+      rightSpeed = 0
+      else leftSpeed = 0;
   }
 
 };
