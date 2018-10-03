@@ -25,7 +25,7 @@
  * @def Différence permis en nombre de pulse avant de corriger la trajectoire.
  * 
  */
-#define MOVE_WHEEL_THERSHOLD 10
+#define MOVE_WHEEL_THRESHOLD 10
 
 #define MOVE_NUMBER_OF_ENCODER 2
 #define MOVE_MASTER 1

@@ -24,7 +24,7 @@
     //Compare la distance parcouru entre les deux roues.
     i32_DeltaWheelSlave = ENCODER_Read(MOVE_MASTER) - ENCODER_Read(MOVE_SLAVE);
 
-    if(i32_DeltaWheelSlave > MOVE_WHEEL_THERSHOLD  || i32_DeltaWheelSlave < -MOVE_WHEEL_THERSHOLD){
+    if(i32_DeltaWheelSlave > MOVE_WHEEL_THRESHOLD  || i32_DeltaWheelSlave < -MOVE_WHEEL_THRESHOLD){
         return i32_DeltaWheelSlave;
     }
 
