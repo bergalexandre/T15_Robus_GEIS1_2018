@@ -24,7 +24,7 @@ float rightSpeed = 0.0;
 float fSpeedAdjustment(){
   float fAdjustement = 0.0;
   int32_t i32DeltaPulse = ENCODER_Read(LEFT) - ENCODER_Read(RIGHT);
-  
+  int32_t i32DeltaPulseOvertime = leftPulses - rightPulses;
   if(i32DeltaPulse > MOVE_WHEEL_MAX_ENCODER_DELTA){
      i32DeltaPulse = MOVE_WHEEL_MAX_ENCODER_DELTA;
   }
@@ -34,6 +34,7 @@ float fSpeedAdjustment(){
   }
 
   fAdjustement = i32DeltaPulse * MOVE_DERIVATIVE_ADJUSTEMENT_FACTOR;
+  //fAdjustement += i32DeltaPulseOvertime * MOVE_INTEGRATIVE_ADJUSTEMENT_FACTOR;
   return fAdjustement;
 }
 
@@ -41,7 +42,10 @@ float fSpeedAdjustment(){
 //retourne distance parcourure en mm
 int32_t MOVE_getDistanceP(int ID)
 {
-    int32_t d = ENCODER_Read(ID)*(1/MOVE_PULSE_PER_TURN)*MOVE_WHEEL_DIAMETER*PI;
+    int32_t d = ENCODER_Read(ID)*((float)1/MOVE_PULSE_PER_TURN)*MOVE_WHEEL_DIAMETER*PI;
+    char tableau[100] = {0};
+    sprintf(tableau,"distance : %i\n", d);
+    Serial.print(tableau);
     return d;
 }
 
@@ -94,6 +98,10 @@ void MOVE_vAvancer(float fVitesse, uint32_t ui32Distance_mm){
     rightSpeed = fVitesse + fSpeedAdjustment();
     delay(100);
   }
+
+  MOTOR_SetSpeed(LEFT,0.0);
+  MOTOR_SetSpeed(RIGHT,0.0);
+
 }
 
 void MOVE_Rotation1Roue(int angle, int ID){
@@ -103,7 +111,7 @@ void MOVE_Rotation1Roue(int angle, int ID){
     leftSpeed=0;
   else if (ID==0)
     rightSpeed=0;
-  pulseCount += ENCODER_Read(ID;)
+  pulseCount += ENCODER_Read(ID);
   if (pulseCount<doPulses)
     MOTOR_SetSpeed(ID,0.5);
   else if (pulseCount=doPulses)
@@ -115,13 +123,18 @@ void setup(){
   BoardInit();
   MOTOR_SetSpeed(0,0.0);
   MOTOR_SetSpeed(1,0.0);
+  Serial.begin(9600);
+
 }
 
 
 
 void loop() {
   // SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
+  Serial.print("Forward");
   MOVE_vAvancer(0.7,2000);
-
-  delay(2000);
+  Serial.print("Stop");
+  MOTOR_SetSpeed(LEFT,0.0);
+  MOTOR_SetSpeed(RIGHT,0.0);
+  delay(10000);
 }

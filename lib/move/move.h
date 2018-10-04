@@ -31,7 +31,7 @@
  * @def Différence permis en nombre de pulse avant de corriger la trajectoire.
  * 
  */
-#define MOVE_WHEEL_MAX_ENCODER_DELTA 100
+#define MOVE_WHEEL_MAX_ENCODER_DELTA 200
 
 
 #define ACTION_TYPE_ACCELERATION 0
@@ -40,8 +40,8 @@
 #define MOVE_NUMBER_OF_ENCODER 2
 #define MOVE_MASTER 1
 #define MOVE_SLAVE 0
-#define MOVE_DERIVATIVE_ADJUSTEMENT_FACTOR 0.1
-#define MOVE_INTEGRATIVE_ADJUSTEMENT_FACTOR 0.1
+#define MOVE_DERIVATIVE_ADJUSTEMENT_FACTOR 1.0
+#define MOVE_INTEGRATIVE_ADJUSTEMENT_FACTOR 0.5
 #define MOVE_DELAY 50
     
 //Prototypes de fonctions
