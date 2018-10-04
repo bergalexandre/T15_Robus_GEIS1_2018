@@ -39,20 +39,12 @@ float fSpeedAdjustment(){
 
 
 //retourne distance parcourure en mm
-int32_t distancep(int ID)
+int32_t MOVE_getDistanceP(int ID)
 {
     int32_t d = ENCODER_Read(ID)*(1/MOVE_PULSE_PER_TURN)*MOVE_WHEEL_DIAMETER*PI;
     return d;
 }
 
-
-
-
-uint32_t MOVE_getDistanceP(int ID)
-{
-    uint32_t d = ENCODER_Read(ID)*(1/MOVE_PULSE_PER_TURN)*MOVE_WHEEL_DIAMETER*PI;
-    return d;
-}
 
 void MOVE_vAcceleration(float initialSpeed, float finalSpeed, unsigned int time){
         
@@ -96,6 +88,20 @@ void MOVE_vAvancer(float fVitesse, uint32_t ui32Distance_mm){
     rightSpeed = fVitesse + fSpeedAdjustment();
     delay(10);
   }
+}
+
+void MOVE_Rotation1Roue(int angle, int ID){
+  int pulseCount=0;
+  float doPulses = angle * (2772/60160);
+  if (ID==1)
+    leftSpeed=0;
+  else if (ID==0)
+    rightSpeed=0;
+  pulseCount += ENCODER_Read(ID;)
+  if (pulseCount<doPulses)
+    MOTOR_SetSpeed(ID,0.5);
+  else if (pulseCount=doPulses)
+    MOTOR_SetSpeed(ID,0.0);
 }
 
 
