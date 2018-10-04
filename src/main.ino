@@ -88,13 +88,13 @@ void MOVE_vAcceleration(float initialSpeed, float finalSpeed, unsigned int time)
         rightPulses = ENCODER_Read(RIGHT) - rightPulses;
 
 }
-void MOVE_vAvancer(float fVitesse, uint32_t ui32Distance_mm){
+void MOVE_vAvancer(float fVitesse, int32_t i32Distance_mm){
   ENCODER_Reset(0);
   ENCODER_Reset(1);
   leftPulses = 0;
   rightPulses = 0;
   MOVE_vAcceleration(leftSpeed,fVitesse,500);
-  while(MOVE_getDistanceP(LEFT) < ui32Distance_mm){
+  while(MOVE_getDistanceP(LEFT) < i32Distance_mm){
     rightSpeed = fVitesse + fSpeedAdjustment();
     delay(100);
   }
@@ -107,14 +107,14 @@ void MOVE_vAvancer(float fVitesse, uint32_t ui32Distance_mm){
 void MOVE_Rotation1Roue(int angle, int ID){
   int pulseCount=0;
   float doPulses = angle * (2772/60160);
-  if (ID==1)
+  if (ID==RIGHT)
     leftSpeed=0;
-  else if (ID==0)
+  else if (ID==LEFT)
     rightSpeed=0;
   pulseCount += ENCODER_Read(ID);
   if (pulseCount<doPulses)
     MOTOR_SetSpeed(ID,0.5);
-  else if (pulseCount=doPulses)
+  else if (pulseCount==doPulses)
     MOTOR_SetSpeed(ID,0.0);
 }
 
