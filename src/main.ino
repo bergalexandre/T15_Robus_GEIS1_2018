@@ -33,7 +33,7 @@ float fSpeedAdjustment(){
     i32DeltaPulse = -1*(MOVE_WHEEL_MAX_ENCODER_DELTA);
   }
 
-  fAdjustement = i32DeltaPulse * MOVE_ADJUSTEMENT_FACTOR;
+  fAdjustement = i32DeltaPulse * MOVE_DERIVATIVE_ADJUSTEMENT_FACTOR;
   return fAdjustement;
 }
 
@@ -55,7 +55,8 @@ uint32_t MOVE_getDistanceP(int ID)
 }
 
 void MOVE_vAcceleration(float initialSpeed, float finalSpeed, unsigned int time){
-        
+        leftPulses = ENCODER_Read(LEFT);
+        rightPulses = ENCODER_Read(RIGHT);
         
         float deltaSpeed = finalSpeed - initialSpeed;
         leftSpeed = initialSpeed;
@@ -87,14 +88,19 @@ void MOVE_vAcceleration(float initialSpeed, float finalSpeed, unsigned int time)
         
         MOTOR_SetSpeed(RIGHT,rightSpeed);
         MOTOR_SetSpeed(LEFT,leftSpeed);
+        leftPulses = ENCODER_Read(LEFT) - leftPulses;
+        rightPulses = ENCODER_Read(RIGHT) - rightPulses;
+
 }
 void MOVE_vAvancer(float fVitesse, uint32_t ui32Distance_mm){
   ENCODER_Reset(0);
   ENCODER_Reset(1);
+  leftPulses = 0;
+  rightPulses = 0;
   MOVE_vAcceleration(leftSpeed,fVitesse,500);
   while(MOVE_getDistanceP(LEFT) < ui32Distance_mm){
     rightSpeed = fVitesse + fSpeedAdjustment();
-    delay(10);
+    delay(100);
   }
 }
 
