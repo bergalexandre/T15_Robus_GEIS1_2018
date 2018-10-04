@@ -97,8 +97,10 @@ void MOVE_vAvancer(float fVitesse, int32_t i32Distance_mm){
 }
 
 void MOVE_Rotation1Roue(int angle, int ID){
+  // tourne du coté opposé au ID
   int pulseCount=0;
-  float doPulses = angle * (2772/60160);
+  // prend un angle en degrés et le multiplie par ((190pi*3200pi/77pi)/360)xs
+  float doPulses = angle * (2772/60800);
   if (ID==RIGHT)
     leftSpeed=0;
   else if (ID==LEFT)
@@ -122,6 +124,7 @@ void setup(){
 void loop() {
   // SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
   MOVE_vAvancer(0.7,2000);
+  MOVE_Rotation1Roue(90,RIGHT);
 
   delay(2000);
 }
