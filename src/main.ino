@@ -19,6 +19,7 @@ Date: 01 oct 2018
 *******************************************************************************/
 
 #define DELAY 50 // Delay in ms
+#define MS_PER_SECOND 1000
 
 /*******************************************************************************
  * Prototypes locaux
@@ -93,6 +94,28 @@ float fSpeedAdjustment(){
  * @param ID encode à mesurer.
  * @return distance en millimètre
  */
+float MOVE_getGuessDistancecMM(uint32_t timeMs, float speed)
+{
+  //Mesurer le temps
+  float estimate = ((float)timeMs/MS_PER_SECOND)*(float)MOVE_WHEEL_DIAMETER*speed;
+  return estimate;
+}
+
+int32_t MOVE_GuessDecelerationDistance(float finalSpeed, float initialSpeed, uint32_t time)
+{
+  int wait = MOVE_WAIT;
+  float deltaSpeed = finalSpeed - initialSpeed;
+  float speedIncrementation = deltaSpeed * (float) wait / (float) time;
+
+  float totalDistance = 0;
+  unsigned int iCount;
+  for(iCount =0; iCount < ((time/wait)+((time%wait)>0)); iCount++)
+  {
+    totalDistance += MOVE_getGuessDistancecMM(wait, initialSpeed + (iCount*speedIncrementation));
+  }
+  return (uint32_t)totalDistance;
+}
+
 int32_t MOVE_getDistanceMM(int ID)
 {
   int32_t d = ENCODER_Read(ID)*((float)1/MOVE_PULSE_PER_TURN)*MOVE_WHEEL_DIAMETER*PI;
@@ -112,12 +135,12 @@ void MOVE_vAccelerationSingleWheel(float finalSpeed, unsigned int time, int ID)
     currentSpeed = &g_rightSpeed; //Addresse de g_rightSpeed
   }
 
-  unsigned int wait = 20;
+  unsigned int wait = MOVE_WAIT;
   float deltaSpeed = finalSpeed - *currentSpeed;
   float speedIncrementation = deltaSpeed * (float) wait / (float) time;
 
   unsigned int iCount;
-  for(iCount =0; iCount <= ((time/wait)+((time%wait)>0)); iCount++)
+  for(iCount =0; iCount < ((time/wait)+((time%wait)>0)); iCount++)
   {
     char buffer1[8] = {0};
     char buffer2[8] = {0}; 
@@ -141,13 +164,13 @@ void MOVE_vAccelerationSingleWheel(float finalSpeed, unsigned int time, int ID)
 void MOVE_vAcceleration(float finalSpeed, unsigned int time)
 {
   float deltaSpeed = finalSpeed - g_leftSpeed;
-  unsigned int wait = 20;
+  unsigned int wait = MOVE_WAIT;
   float speedIncrementation = deltaSpeed * (float) wait / (float) time;
 
   //S'assure que la roue droite soit à la même vitesse que la roue gauche.
   g_rightSpeed = g_leftSpeed;
   unsigned int iCount;
-  for(iCount =0; iCount <= ((time/wait)+((time%wait)>0)); iCount++)
+  for(iCount =0; iCount < ((time/wait)+((time%wait)>0)); iCount++)
   {
     char buffer1[20] = {0};
     char buffer2[20] = {0}; 
@@ -155,7 +178,7 @@ void MOVE_vAcceleration(float finalSpeed, unsigned int time)
     strcpy(buffer2, strFloat(finalSpeed));    
     SerialPrintf("Acceleration %s sur %s\n", buffer1, buffer2);
     g_leftSpeed += speedIncrementation;
-    g_rightSpeed += speedIncrementation;
+    g_rightSpeed = g_leftSpeed + fSpeedAdjustment();
     MOTOR_SetSpeed(RIGHT, g_rightSpeed);
     MOTOR_SetSpeed(LEFT, g_leftSpeed);
     delay(wait);
@@ -172,7 +195,7 @@ void MOVE_vAvancer(float fVitesse, int32_t i32Distance_mm){
   ENCODER_Reset(0);
   ENCODER_Reset(1);
 
-  MOVE_vAcceleration(fVitesse, 200);
+  MOVE_vAcceleration(fVitesse, 500);
   while(MOVE_getDistanceMM(LEFT) < i32Distance_mm)
   {
     SerialPrintf("Distance fait = %i mm\n", MOVE_getDistanceMM(LEFT));
@@ -195,23 +218,24 @@ void MOVE_Rotation1Roue(unsigned int angle, int iRotationDirection)
 
   //Consigne de distance pour la roue opposé au virage afin d'arriver à l'angle voulu. 
   int32_t angleEnDistance = (2*PI*MOVE_LARGEUR_ROBOT*angle)/360;
+  angleEnDistance -= MOVE_GuessDecelerationDistance(0.0, MOVE_MAX_SPEED, 50);//Estimation de la distance requis pour ralentir.
   //Arrête les mouvements avant de tourner
   MOVE_vAcceleration(0.0, 200);
   //Reset les encodeurss
   ENCODER_Reset(0);
   ENCODER_Reset(1);
 
-  MOVE_vAccelerationSingleWheel(0.9, 200 ,ID);
+  MOVE_vAccelerationSingleWheel(MOVE_MAX_SPEED, 200 ,ID);
   int32_t distanceActuelle = MOVE_getDistanceMM(ID);
 
   while( distanceActuelle < angleEnDistance)
   {
     SerialPrintf("Virage à %s de %i degré, distance = %i sur %i\n", 
       iRotationDirection == LEFT ? "LEFT": "RIGTH", angle, distanceActuelle, angleEnDistance);
-    delay(50);
+    delay(5);
     distanceActuelle = MOVE_getDistanceMM(iRotationDirection == LEFT ? RIGHT: LEFT);
   }
-  MOVE_vAccelerationSingleWheel(0, 300, ID);
+  MOVE_vAccelerationSingleWheel(0, 50, ID);
 }
 
 
@@ -228,14 +252,12 @@ void setup(){
 
 void loop() {
   // SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
-  SerialPrintf("test %i sur %i\n", 2, 5);
-  SerialPrintf("Avance pour 2m\n");
-  MOVE_vAvancer(0.7,4000);
-  SerialPrintf("Pivote de 180 degre\n");
-  MOVE_Rotation1Roue(180,RIGHT);
-  SerialPrintf("Avance pour 2m\n");
-  MOVE_vAvancer(0.7,2000);
-  MOVE_vAcceleration(0, 300);
-  delay(2000);
-  while(1)delay(200);
+  while(1)
+  {
+    MOVE_vAvancer(MOVE_MAX_SPEED,2000);
+    MOVE_Rotation1Roue(180,RIGHT);
+    MOVE_vAvancer(MOVE_MAX_SPEED,2000);
+    MOVE_Rotation1Roue(180,RIGHT);
+    delay(5000);
+  }
 }

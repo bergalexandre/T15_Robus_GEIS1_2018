@@ -20,7 +20,7 @@
  * @brief Distance entre les deux roue en millimetres
  * 
  */
-#define MOVE_LARGEUR_ROBOT 190
+#define MOVE_LARGEUR_ROBOT 160
 
 /**
  * @def Nombre de "Pulse" que l'encodeur génère pour chaque tour de roue complet.
@@ -44,6 +44,8 @@
 #define MOVE_DERIVATIVE_ADJUSTEMENT_FACTOR 0.001
 #define MOVE_INTEGRATIVE_ADJUSTEMENT_FACTOR 0.001
 #define MOVE_DELAY 50
+#define MOVE_WAIT 20
+#define MOVE_MAX_SPEED 0.9
     
 //Prototypes de fonctions
 float fGetSlaveSpeed(int iMotorID);
@@ -52,4 +54,4 @@ void vSetMotorSpeed(int iMotorID, float fSpeed);
 void acceleration(float initialSpeed, float finalSpeed, unsigned int time);
 
 
-#endif
+#endif      
