@@ -1,6 +1,5 @@
 #ifndef MOVE_H 
 #define MOVE_h
-#include <LibRobus.h> 
 
 
 /**
@@ -12,14 +11,16 @@
  */
 
 /**
-<<<<<<< HEAD
- * @def Diamètre de la roue en millimètre.
-=======
  * @def Diamètre de la roue en millimetres.
->>>>>>> 57fc3e9a1b3adeff7d0b4d53ed2ee63f4f290345
  * 
  */
 #define MOVE_WHEEL_DIAMETER 77
+
+/**
+ * @brief Distance entre les deux roue en millimetres
+ * 
+ */
+#define MOVE_LARGEUR_ROBOT 190
 
 /**
  * @def Nombre de "Pulse" que l'encodeur génère pour chaque tour de roue complet.
