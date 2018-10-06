@@ -171,6 +171,7 @@ void MOVE_Rotation1Roue(unsigned int angle, int iRotationDirection)
 
 void setup(){
   BoardInit();
+  Serial.begin(9600);
   g_leftSpeed = 0;
   g_rightSpeed = 0;
   MOTOR_SetSpeed(LEFT, 0.0);
