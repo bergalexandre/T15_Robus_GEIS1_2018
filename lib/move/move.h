@@ -45,7 +45,7 @@
 #define MOVE_INTEGRATIVE_ADJUSTEMENT_FACTOR 0.001
 #define MOVE_DELAY 50
 #define MOVE_WAIT 20
-#define MOVE_MAX_SPEED 0.9
+#define MOVE_MAX_SPEED 0.7
     
 //Prototypes de fonctions
 float fGetSlaveSpeed(int iMotorID);

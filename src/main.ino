@@ -226,7 +226,7 @@ void MOVE_vAvancer(float fVitesse, int32_t i32Distance_mm){
   ENCODER_Reset(0);
   ENCODER_Reset(1);
 
-  MOVE_vAcceleration(fVitesse, 500);
+  MOVE_vAcceleration(fVitesse, 125);
   while(MOVE_getDistanceMM(LEFT) < i32Distance_mm)
   {
     SerialPrintf("Distance fait = %i mm\n", MOVE_getDistanceMM(LEFT));
@@ -257,7 +257,7 @@ void MOVE_Rotation1Roue(unsigned int angle, int iRotationDirection)
   ENCODER_Reset(0);
   ENCODER_Reset(1);
 
-  MOVE_vAccelerationSingleWheel(MOVE_MAX_SPEED, 200 ,ID);
+  MOVE_vAccelerationSingleWheel(MOVE_MAX_SPEED, 100 ,ID);
   int32_t distanceActuelle = MOVE_getDistanceMM(ID);
 
   while( distanceActuelle < angleEnDistance)
@@ -272,6 +272,43 @@ void MOVE_Rotation1Roue(unsigned int angle, int iRotationDirection)
   MOVE_vAccelerationSingleWheel(0, 50, ID);
 }
 
+void MOVE_Rotation2Roues(int angle)
+{
+  // Avance du coté opposé à la direction. Pour ceux qui connaissent pas, le ? C'est un opérateur conditionel.
+  //Condition == TRUE ? Fait ça si TRUE: Sinon fait ça si FALSE
+
+  //Consigne de distance pour la roue opposé au virage afin d'arriver à l'angle voulu. 
+  int32_t angleEnDistance = (2*PI*MOVE_LARGEUR_ROBOT*angle)/360;
+  angleEnDistance -= MOVE_GuessDecelerationDistance(0.0, MOVE_MAX_SPEED, 50);//Estimation de la distance requis pour ralentir.
+  //Arrête les mouvements avant de tourner
+  MOVE_vAcceleration(0.0, 200);
+  //Reset les encodeurss
+  ENCODER_Reset(0);
+  ENCODER_Reset(1);
+
+  MOVE_vAccelerationSingleWheel(-0.5, 100 ,RIGHT);
+  MOVE_vAccelerationSingleWheel(0.5, 100,LEFT);
+  int32_t distanceActuelleR = MOVE_getDistanceMM(RIGHT);
+  int32_t distanceActuelleL = MOVE_getDistanceMM(LEFT);
+
+  while( distanceActuelleL < angleEnDistance || distanceActuelleR > -1*angleEnDistance )
+  {
+    distanceActuelleR = MOVE_getDistanceMM(RIGHT);
+    distanceActuelleL = MOVE_getDistanceMM(LEFT);
+    if (distanceActuelleR>=angleEnDistance)
+    {
+         MOVE_vAccelerationSingleWheel(0, 50, RIGHT);
+    }
+    if (distanceActuelleL<=-1*angleEnDistance)
+    {
+         MOVE_vAccelerationSingleWheel(0, 50, LEFT);
+    }
+  }
+  //Stop la roue qui tourne.
+  MOVE_vAccelerationSingleWheel(0, 50, RIGHT);
+  MOVE_vAccelerationSingleWheel(0, 50, LEFT);
+}
+
 
 void setup(){
   BoardInit();
@@ -280,6 +317,12 @@ void setup(){
   g_rightSpeed = 0;
   MOTOR_SetSpeed(LEFT, 0.0);
   MOTOR_SetSpeed(RIGHT, 0.0);
+
+  
+
+  while(!ROBUS_IsBumper(3)){
+  }
+  
 }
 
 
@@ -288,10 +331,37 @@ void loop() {
   // SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
   while(1)
   {
-    MOVE_vAvancer(MOVE_MAX_SPEED,2000);
-    MOVE_Rotation1Roue(180,RIGHT);
-    MOVE_vAvancer(MOVE_MAX_SPEED,2000);
-    MOVE_Rotation1Roue(180,RIGHT);
-    delay(5000);
+    // début de l'aller
+    MOVE_vAvancer(MOVE_MAX_SPEED,1900);
+    // 90 degrés c'est 80
+    MOVE_Rotation1Roue(80,LEFT);
+    MOVE_vAvancer(MOVE_MAX_SPEED,70);
+    MOVE_Rotation1Roue(80,RIGHT);
+    MOVE_vAvancer(MOVE_MAX_SPEED,50);
+    // cette fois ci, 90 c'est 90 ?????
+    MOVE_Rotation1Roue(90,RIGHT);
+    // posez pas de questions ca avance du minimum
+    MOVE_vAvancer(MOVE_MAX_SPEED,0);
+    MOVE_Rotation1Roue(45,LEFT);
+    MOVE_vAvancer(MOVE_MAX_SPEED,450);
+    MOVE_Rotation1Roue(70,LEFT);
+    MOVE_vAvancer(MOVE_MAX_SPEED,500);
+    MOVE_Rotation1Roue(40,RIGHT);
+    MOVE_vAvancer(MOVE_MAX_SPEED,950);
+
+
+
+    // posez pas de questions, angle magique pour faire un 180
+    MOVE_Rotation2Roues(83);
+
+    
+    // début du retour
+    MOVE_vAvancer(MOVE_MAX_SPEED,950);
+    MOVE_Rotation1Roue(40,LEFT);
+    MOVE_vAvancer(MOVE_MAX_SPEED,550);
+    MOVE_Rotation1Roue(80,RIGHT);
+    MOVE_vAvancer(MOVE_MAX_SPEED,400);
+    MOVE_Rotation1Roue(40,RIGHT);
+    delay(50000);
   }
 }
