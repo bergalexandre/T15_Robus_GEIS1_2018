@@ -40,17 +40,21 @@ char floatbuffer[8]; //mémoire reservé pour afficher des floats
 *******************************************************************************/
 
 /**
- * @brief Imprimme jusqu'à 256 charactères
+ * @brief Imprimme jusqu'à 256 charactères sur le port série. 
  * 
- * @param {type} fmt string comme dans un printf
- * @param {type} ... arguments pour %i, %f, etc
+ * @param format string comme dans un printf
+ * @param ... arguments pour %i, %f, etc
+ * 
+ * AB: Faîte attention ça dirait que la fonction marche pas quand on lui donne les arguments d'une autre fonction. 
+ * Il faudra que je check pourquoi ça print 0 quand on fait ça.
+ * 
  */
-void SerialPrintf(const char *fmt, ...)
+void SerialPrintf(const char *format, ...)
 {
   char buffer[256];
   va_list args;
-  va_start(args, fmt);
-  vsprintf(buffer, fmt, args);
+  va_start(args, format);
+  vsprintf(buffer, format, args);
   va_end(args);
   Serial.print(buffer);
 }
@@ -71,6 +75,11 @@ char* strFloat(float valeur)
   return floatbuffer;
 }
 
+/**
+ * @brief Retourne une valeur entre -0.1 et 0.1 en fonction de la différence entre les deux encodeurs.
+ * 
+ * @return float Ajustement à faire sur la vitesse de la roue droite.
+ */
 float fSpeedAdjustment(){
   float fAdjustement = 0.0;
   int32_t i32DeltaPulse = ENCODER_Read(LEFT) - ENCODER_Read(RIGHT);
@@ -101,6 +110,14 @@ float MOVE_getGuessDistancecMM(uint32_t timeMs, float speed)
   return estimate;
 }
 
+/**
+ * @brief Essait d'estimer la distance parcouru pour accélérer ou ralentir.
+ * 
+ * @param finalSpeed Vitesse que le robot va atteindre.
+ * @param initialSpeed Vitesse actuel du robot.
+ * @param time Temps sur le quel il va accélérer
+ * @return int32_t Nouvelle distance, ne prend pas en compte les décimals de millimètre.
+ */
 int32_t MOVE_GuessDecelerationDistance(float finalSpeed, float initialSpeed, uint32_t time)
 {
   int wait = MOVE_WAIT;
@@ -116,12 +133,25 @@ int32_t MOVE_GuessDecelerationDistance(float finalSpeed, float initialSpeed, uin
   return (uint32_t)totalDistance;
 }
 
+/**
+ * @brief Distance que le robot à parcouru depuis la dernière fois que l'encoder s'est fait reset.
+ * 
+ * @param ID ID de l'encodeur à lire.
+ * @return int32_t Retourne la distance en millimètre.
+ */
 int32_t MOVE_getDistanceMM(int ID)
 {
   int32_t d = ENCODER_Read(ID)*((float)1/MOVE_PULSE_PER_TURN)*MOVE_WHEEL_DIAMETER*PI;
   return d;
 }
 
+/**
+ * @brief Accélère/ralenti pour une seule roue.
+ * 
+ * @param {type} finalSpeed Vitesse final du robot
+ * @param {type} time Temps pour lequel le robot doit accélérer/ralentir.
+ * @param {type} ID ID de la roue à bouger.
+ */
 void MOVE_vAccelerationSingleWheel(float finalSpeed, unsigned int time, int ID)
 {
   float *currentSpeed; //Pointeur vers la variable de vitesse. Quand on le modifie, ça modifie l'autre également.
@@ -150,7 +180,8 @@ void MOVE_vAccelerationSingleWheel(float finalSpeed, unsigned int time, int ID)
     *currentSpeed += speedIncrementation;
     MOTOR_SetSpeed(ID, *currentSpeed);
   }
-  //Set la vitesse à cause que les floats ne sont pas très précis (on ne sera jamais à la consigne exacte sinon)
+  /*Set la vitesse à cause que les floats ne sont pas très précis (on ne sera jamais à la consigne exacte sinon). 
+  * C'est un problème quand on veut une vitesse de 0.*/
   *currentSpeed = finalSpeed;
   MOTOR_SetSpeed(ID, *currentSpeed);
 }
@@ -213,7 +244,8 @@ void MOVE_vAvancer(float fVitesse, int32_t i32Distance_mm){
  */
 void MOVE_Rotation1Roue(unsigned int angle, int iRotationDirection)
 {
-  // Avance du coté opposé à la direction.
+  // Avance du coté opposé à la direction. Pour ceux qui connaissent pas, le ? C'est un opérateur conditionel.
+  //Condition == TRUE ? Fait ça si TRUE: Sinon fait ça si FALSE;
   int ID = iRotationDirection == LEFT ? RIGHT: LEFT;
 
   //Consigne de distance pour la roue opposé au virage afin d'arriver à l'angle voulu. 
@@ -235,6 +267,8 @@ void MOVE_Rotation1Roue(unsigned int angle, int iRotationDirection)
     delay(5);
     distanceActuelle = MOVE_getDistanceMM(iRotationDirection == LEFT ? RIGHT: LEFT);
   }
+
+  //Stop la roue qui tourne.
   MOVE_vAccelerationSingleWheel(0, 50, ID);
 }
 
