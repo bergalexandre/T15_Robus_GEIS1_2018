@@ -146,6 +146,36 @@ int32_t MOVE_getDistanceMM(int ID)
 }
 
 /**
+ * @brief Accélère les deux roue inversément.
+ * 
+ * @param {type} finalSpeed 
+ * @param {type} time 
+ */
+void MOVE_vAccelerationInverted(float finalSpeed, unsigned int time)
+{
+  float deltaSpeed = finalSpeed - g_leftSpeed;
+  unsigned int wait = MOVE_WAIT;
+  float speedIncrementation = deltaSpeed * (float) wait / (float) time;
+
+  //S'assure que la roue droite soit à la même vitesse que la roue gauche.
+  g_rightSpeed = g_leftSpeed;
+  unsigned int iCount;
+  for(iCount =0; iCount < ((time/wait)+((time%wait)>0)); iCount++)
+  {
+    char buffer1[20] = {0};
+    char buffer2[20] = {0}; 
+    strcpy(buffer1, strFloat(g_leftSpeed));
+    strcpy(buffer2, strFloat(finalSpeed));    
+    SerialPrintf("Acceleration %s sur %s\n", buffer1, buffer2);
+    g_leftSpeed += speedIncrementation;
+    g_rightSpeed = -g_leftSpeed + fSpeedAdjustment();
+    MOTOR_SetSpeed(RIGHT, g_rightSpeed);
+    MOTOR_SetSpeed(LEFT, g_leftSpeed);
+    delay(wait);
+  }
+}
+
+/**
  * @brief Accélère/ralenti pour une seule roue.
  * 
  * @param {type} finalSpeed Vitesse final du robot
