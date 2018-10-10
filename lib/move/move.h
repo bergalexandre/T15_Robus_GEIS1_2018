@@ -20,7 +20,7 @@
  * @brief Distance entre les deux roue en millimetres
  * 
  */
-#define MOVE_LARGEUR_ROBOT 160
+#define MOVE_LARGEUR_ROBOT 190
 
 /**
  * @def Nombre de "Pulse" que l'encodeur génère pour chaque tour de roue complet.
@@ -46,12 +46,11 @@
 #define MOVE_DELAY 50
 #define MOVE_WAIT 20
 #define MOVE_MAX_SPEED 0.7
-    
-//Prototypes de fonctions
-float fGetSlaveSpeed(int iMotorID);
-void vMoveStraight(float speed);
-void vSetMotorSpeed(int iMotorID, float fSpeed);
-void acceleration(float initialSpeed, float finalSpeed, unsigned int time);
+
+//Valeur en % où le robot doit ralentir durant son virage
+#define MOVE_SLOW_AT_PERCENT 50
+//temps sur lequel le robot doit faire la fin du virage.
+#define MOVE_TURN_TIME 10
 
 
 #endif      

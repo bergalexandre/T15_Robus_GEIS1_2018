@@ -187,7 +187,7 @@ void MOVE_vAccelerationInverted(float finalSpeed, unsigned int time)
  * @param {type} time Temps pour lequel le robot doit accélérer/ralentir.
  * @param {type} ID ID de la roue à bouger.
  */
-void MOVE_vAccelerationSingleWheel(float finalSpeed, unsigned int time, int ID)
+void MOVE_vAccelerationSingleWheel(float finalSpeed, unsigned int time, int ID, int32_t distanceMM)
 {
   float *currentSpeed; //Pointeur vers la variable de vitesse. Quand on le modifie, ça modifie l'autre également.
 
@@ -207,6 +207,11 @@ void MOVE_vAccelerationSingleWheel(float finalSpeed, unsigned int time, int ID)
   unsigned int iCount;
   for(iCount =0; iCount < ((time/wait)+((time%wait)>0)); iCount++)
   {
+    int32_t currentDistance = ENCODER_Read(ID);
+    if(currentDistance >= distanceMM && distanceMM != 0)
+    {
+      break;
+    }
     char buffer1[8] = {0};
     char buffer2[8] = {0}; 
     strcpy(buffer1, strFloat(*currentSpeed));
@@ -272,6 +277,31 @@ void MOVE_vAvancer(float fVitesse, int32_t i32Distance_mm){
   MOVE_vAcceleration(0.0, 100);
 }
 
+void MOVE_finDuVirage(int ID, int32_t distanceMM, float speed)
+{
+  distanceMM -= 10;
+  float *currentSpeed = ID == LEFT? &g_leftSpeed: &g_rightSpeed;
+  int32_t currentDistance = MOVE_getDistanceMM(ID);
+  while(currentDistance < distanceMM)
+  {
+    float facteur = (((float)distanceMM-(float)currentDistance)/distanceMM);
+    *currentSpeed = speed * facteur;
+    if(*currentSpeed < 0.125)
+    {
+      *currentSpeed = 0.125;
+    }
+    strFloat(speed);
+    MOTOR_SetSpeed(ID, *currentSpeed);
+    SerialPrintf("Virage à %s, distance = %i sur %i, vitesse = %s\n",
+    ID == RIGHT ? "LEFT": "RIGTH", (int)currentDistance, distanceMM, floatbuffer);
+    delay(1);
+    currentDistance = MOVE_getDistanceMM(ID);
+  }
+  *currentSpeed = 0.0;
+  MOTOR_SetSpeed(ID, *currentSpeed);
+  SerialPrintf("Distance final est de %i sur %i\n", (int)MOVE_getDistanceMM(ID), (int)distanceMM);
+}
+
 /**
  * @brief Fait pivoter le robot sur lui même.
  * 
@@ -283,29 +313,26 @@ void MOVE_Rotation1Roue(float angle, int iRotationDirection)
   // Avance du coté opposé à la direction. Pour ceux qui connaissent pas, le ? C'est un opérateur conditionel.
   //Condition == TRUE ? Fait ça si TRUE: Sinon fait ça si FALSE;
   int ID = iRotationDirection == LEFT ? RIGHT: LEFT;
-
   //Consigne de distance pour la roue opposé au virage afin d'arriver à l'angle voulu. 
   int32_t angleEnDistance = (2*PI*MOVE_LARGEUR_ROBOT*angle)/360;
-  angleEnDistance -= MOVE_GuessDecelerationDistance(0.0, MOVE_MAX_SPEED, 50);//Estimation de la distance requis pour ralentir.
-  //Arrête les mouvements avant de tourner
-  MOVE_vAcceleration(0.0, 200);
   //Reset les encodeurss
   ENCODER_Reset(0);
   ENCODER_Reset(1);
 
-  MOVE_vAccelerationSingleWheel(0.5, 100 ,ID);
+  float speed = angle > 20? 0.5: 0.2;
+  MOVE_vAccelerationSingleWheel(0.5, 100 ,ID, angleEnDistance);
   int32_t distanceActuelle = MOVE_getDistanceMM(ID);
 
-  while( distanceActuelle < angleEnDistance)
+  //Turn at max speed
+  while( ((distanceActuelle)*100/angleEnDistance) < MOVE_SLOW_AT_PERCENT)
   {
     SerialPrintf("Virage à %s de %i degré, distance = %i sur %i\n", 
-      iRotationDirection == LEFT ? "LEFT": "RIGTH", angle, distanceActuelle, angleEnDistance);
-    delay(5);
+    iRotationDirection == LEFT ? "LEFT": "RIGTH", (int)angle, (int)distanceActuelle, angleEnDistance);
     distanceActuelle = MOVE_getDistanceMM(iRotationDirection == LEFT ? RIGHT: LEFT);
+    delay(5);
   }
-
-  //Stop la roue qui tourne.
-  MOVE_vAccelerationSingleWheel(0, 50, ID);
+  //Tourne lentement juste à ce que le robot soit à la consigne.
+  MOVE_finDuVirage(ID, angleEnDistance, speed);
 }
 
 void MOVE_Rotation2Roues(float angle)
@@ -340,7 +367,18 @@ void setup(){
   g_rightSpeed = 0;
   MOTOR_SetSpeed(LEFT, 0.0);
   MOTOR_SetSpeed(RIGHT, 0.0);
-
+  while(1)
+  {
+    while(!ROBUS_IsBumper(3));
+    MOVE_Rotation1Roue(90, LEFT);
+    delay(1000);
+    MOVE_Rotation1Roue(45, LEFT);
+    delay(1000);
+    MOVE_Rotation1Roue(10, LEFT);
+    delay(1000);
+    MOVE_Rotation1Roue(215, LEFT);
+    delay(1000);  
+  }
   while(!ROBUS_IsBumper(3)){
   }
   
