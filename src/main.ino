@@ -82,7 +82,7 @@ char* strFloat(float valeur)
  */
 float fSpeedAdjustment(){
   float fAdjustement = 0.0;
-  int32_t i32DeltaPulse = ENCODER_Read(LEFT) - ENCODER_Read(RIGHT);
+  int32_t i32DeltaPulse = abs(ENCODER_Read(LEFT)) - abs(ENCODER_Read(RIGHT));
   
   if(i32DeltaPulse > MOVE_WHEEL_MAX_ENCODER_DELTA){
     i32DeltaPulse = MOVE_WHEEL_MAX_ENCODER_DELTA;
@@ -163,16 +163,21 @@ void MOVE_vAccelerationInverted(float finalSpeed, unsigned int time)
   for(iCount =0; iCount < ((time/wait)+((time%wait)>0)); iCount++)
   {
     char buffer1[20] = {0};
-    char buffer2[20] = {0}; 
-    strcpy(buffer1, strFloat(g_leftSpeed));
-    strcpy(buffer2, strFloat(finalSpeed));    
-    SerialPrintf("Acceleration %s sur %s\n", buffer1, buffer2);
+    char buffer2[20] = {0};     
     g_leftSpeed += speedIncrementation;
     g_rightSpeed = -g_leftSpeed + fSpeedAdjustment();
+    strcpy(buffer1, strFloat(g_leftSpeed));
+    strcpy(buffer2, strFloat(g_rightSpeed));
+    SerialPrintf("Roue gauche = %s, roue droite = %s\n", buffer1, buffer2);
     MOTOR_SetSpeed(RIGHT, g_rightSpeed);
     MOTOR_SetSpeed(LEFT, g_leftSpeed);
     delay(wait);
   }
+
+  g_leftSpeed = finalSpeed;
+  g_rightSpeed = finalSpeed;
+  MOTOR_SetSpeed(LEFT, g_leftSpeed);
+  MOTOR_SetSpeed(RIGHT, g_leftSpeed);
 }
 
 /**
@@ -305,35 +310,26 @@ void MOVE_Rotation1Roue(float angle, int iRotationDirection)
 
 void MOVE_Rotation2Roues(float angle)
 {
-
   //Consigne de distance pour la roue opposé au virage afin d'arriver à l'angle voulu. 
   int32_t angleEnDistance = ((2*PI*MOVE_LARGEUR_ROBOT*angle)/360)/2;
-  angleEnDistance -= MOVE_GuessDecelerationDistance(0.0, MOVE_MAX_SPEED, 50);//Estimation de la distance requis pour ralentir.
+  angleEnDistance -= MOVE_GuessDecelerationDistance(0.0, 0.4, 100);//Estimation de la distance requis pour ralentir.
   //Reset les encodeurss
   ENCODER_Reset(0);
   ENCODER_Reset(1);
 
-  MOVE_vAccelerationSingleWheel(-0.4, 100 ,RIGHT);
-  MOVE_vAccelerationSingleWheel(0.4, 100,LEFT);
-  int32_t distanceActuelleR = MOVE_getDistanceMM(RIGHT);
+  MOVE_vAccelerationInverted(0.4, 100);
   int32_t distanceActuelleL = MOVE_getDistanceMM(LEFT);
 
-  while( distanceActuelleL < angleEnDistance || distanceActuelleR > -1*angleEnDistance )
+  while( distanceActuelleL < angleEnDistance )
   {
-    distanceActuelleR = MOVE_getDistanceMM(RIGHT);
     distanceActuelleL = MOVE_getDistanceMM(LEFT);
-    if (distanceActuelleR>=angleEnDistance)
-    {
-         MOVE_vAccelerationSingleWheel(0, 50, RIGHT);
-    }
-    if (distanceActuelleL<=-1*angleEnDistance)
-    {
-         MOVE_vAccelerationSingleWheel(0, 50, LEFT);
-    }
+    //ajuste la vitesse de la roue droite
+    g_rightSpeed = -0.4 + fSpeedAdjustment();
+    MOTOR_SetSpeed(RIGHT, g_rightSpeed);
+    SerialPrintf("Distance fait: %imm\n", distanceActuelleL);
   }
   //Stop la roue qui tourne.
-  MOVE_vAccelerationSingleWheel(0, 0, RIGHT);
-  MOVE_vAccelerationSingleWheel(0, 0, LEFT);
+  MOVE_vAccelerationInverted(0.0, 100);
 }
 
 
@@ -373,8 +369,7 @@ void loop() {
     MOVE_Rotation1Roue(45,RIGHT);
     MOVE_vAvancer(0.5,950);
 
-    // posez pas de questions, angle magique pour faire un 180
-    MOVE_Rotation2Roues(83);
+    MOVE_Rotation2Roues(180);
 
     // début du retour
 
