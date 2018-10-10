@@ -269,6 +269,7 @@ void MOVE_vAvancer(float fVitesse, int32_t i32Distance_mm){
     MOTOR_SetSpeed(RIGHT, g_rightSpeed);
     delay(100);
   }
+  // Arrête le mouvement
   MOVE_vAcceleration(0.0, 100);
 }
 
@@ -287,8 +288,7 @@ void MOVE_Rotation1Roue(float angle, int iRotationDirection)
   //Consigne de distance pour la roue opposé au virage afin d'arriver à l'angle voulu. 
   int32_t angleEnDistance = (2*PI*MOVE_LARGEUR_ROBOT*angle)/360;
   angleEnDistance -= MOVE_GuessDecelerationDistance(0.0, MOVE_MAX_SPEED, 50);//Estimation de la distance requis pour ralentir.
-  //Arrête les mouvements avant de tourner
-  MOVE_vAcceleration(0.0, 200);
+  
   //Reset les encodeurss
   ENCODER_Reset(0);
   ENCODER_Reset(1);
@@ -341,6 +341,7 @@ void setup(){
   MOTOR_SetSpeed(LEFT, 0.0);
   MOTOR_SetSpeed(RIGHT, 0.0);
 
+
   while(!ROBUS_IsBumper(3)){
   }
   
@@ -359,34 +360,34 @@ void loop() {
     MOVE_Rotation1Roue(90,RIGHT);
     MOVE_vAvancer(0.5,200);
     MOVE_Rotation1Roue(90,RIGHT);
-    MOVE_vAvancer(0.5,300);
+    MOVE_vAvancer(0.5,150);
+    MOVE_Rotation1Roue(45,LEFT);
+    MOVE_vAvancer(0.5,550);
     MOVE_Rotation1Roue(90,LEFT);
-    MOVE_vAvancer(0.5,180);
-    MOVE_Rotation1Roue(40,RIGHT);
-    MOVE_vAvancer(0.5,225);
-    MOVE_Rotation1Roue(90,LEFT);
-    MOVE_vAvancer(0.5,600);
+    MOVE_vAvancer(0.5,580);
     MOVE_Rotation1Roue(45,RIGHT);
-    MOVE_vAvancer(0.5,950);
+    MOVE_vAvancer(0.5,180);
+    MOVE_Rotation1Roue(10,RIGHT);
+    MOVE_vAvancer(0.5,1000);
 
-    MOVE_Rotation2Roues(180);
+    MOVE_Rotation2Roues(178);
 
     // début du retour
 
-    MOVE_vAvancer(0.5,950);
-    MOVE_Rotation1Roue(45,LEFT);
-    MOVE_vAvancer(0.5,600);
-    MOVE_Rotation1Roue(90,RIGHT);
-    MOVE_vAvancer(0.5,225);
-    MOVE_Rotation1Roue(40,LEFT);
+    MOVE_vAvancer(0.5,1000);
+    MOVE_Rotation1Roue(10,LEFT);
     MOVE_vAvancer(0.5,180);
+    MOVE_Rotation1Roue(45,LEFT);
+    MOVE_vAvancer(0.5,550);
     MOVE_Rotation1Roue(90,RIGHT);
-    MOVE_vAvancer(0.5,300);
+    MOVE_vAvancer(0.5,550);
+    MOVE_Rotation1Roue(45,RIGHT);
+    MOVE_vAvancer(0.5,150);
     MOVE_Rotation1Roue(90,LEFT);
     MOVE_vAvancer(0.5,200);
     MOVE_Rotation1Roue(90,LEFT);
     MOVE_vAvancer(0.5,300);
-    MOVE_Rotation1Roue(90,RIGHT);
+    MOVE_Rotation1Roue(93, RIGHT);
     MOVE_vAvancer(MOVE_MAX_SPEED,2000);
     delay(50000);
   }
