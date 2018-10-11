@@ -412,24 +412,6 @@ void setup(){
   g_rightSpeed = 0;
   MOTOR_SetSpeed(LEFT, 0.0);
   MOTOR_SetSpeed(RIGHT, 0.0);
-  /*
-  while(1)
-  {
-    while(!ROBUS_IsBumper(3));
-    MOVE_Rotation1Roue(90, LEFT);
-    delay(1000);
-    MOVE_Rotation1Roue(45, LEFT);
-    delay(1000);
-    MOVE_Rotation1Roue(10, LEFT);
-    delay(1000);
-    MOVE_Rotation1Roue(215, LEFT);
-    delay(1000);  
-  }*/
-  while(1)
-  {
-    while(!ROBUS_IsBumper(3));
-    MOVE_Rotation2Roues(180);  
-  }
   while(!ROBUS_IsBumper(3)){
   }
   
