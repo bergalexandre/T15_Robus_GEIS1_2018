@@ -459,7 +459,7 @@ void loop() {
     MOVE_Rotation1Roue(90,LEFT);
     MOVE_vAvancer(0.5,300);
     MOVE_Rotation1Roue(90, RIGHT);
-    MOVE_vAvancer(MOVE_MAX_SPEED,2000);
+    MOVE_vAvancer(MOVE_MAX_SPEED,2200);
     delay(50000);
   }
 }
