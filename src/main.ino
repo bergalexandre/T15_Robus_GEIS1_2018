@@ -336,28 +336,72 @@ void MOVE_Rotation1Roue(float angle, int iRotationDirection)
   MOVE_finDuVirage(ID, angleEnDistance, speed);
 }
 
+void MOVE_FinduPivot(int32_t distanceMM, float speed)
+{
+  distanceMM -= 10;
+  int32_t currentDistance[2];
+  currentDistance[LEFT] = MOVE_getDistanceMM(LEFT);
+  currentDistance[RIGHT] = MOVE_getDistanceMM(RIGHT);
+  while(currentDistance[LEFT] < distanceMM || abs(currentDistance[RIGHT]) < distanceMM)
+  {
+    float facteur[2];
+    facteur[LEFT] = (((float)distanceMM-(float)currentDistance[LEFT])/distanceMM);
+    facteur[RIGHT] = (((float)distanceMM-(float)abs(currentDistance[RIGHT]))/distanceMM);
+    g_leftSpeed = speed * facteur[LEFT];
+    g_rightSpeed = -speed * facteur[RIGHT];
+
+    if(g_leftSpeed < 0.125)
+    {
+      g_leftSpeed = 0.125;
+    }
+    if(g_rightSpeed > -0.125)
+    {
+      g_rightSpeed = -0.125;
+    }
+    
+    MOTOR_SetSpeed(LEFT, currentDistance[LEFT] < distanceMM ? g_leftSpeed: 0.0);
+    MOTOR_SetSpeed(RIGHT, currentDistance[RIGHT] < distanceMM ? g_rightSpeed: 0.0);
+
+    SerialPrintf("Pivot, distance = %i et %i sur %i, vitesse LEFT = ", (int)currentDistance[LEFT], (int)currentDistance[RIGHT], (int)distanceMM);
+    Serial.print(g_leftSpeed);
+    Serial.print(" et vitesse RIGHT = ");
+    Serial.print(g_rightSpeed);
+    Serial.print("\n");
+    delay(1);
+    currentDistance[LEFT] = MOVE_getDistanceMM(LEFT);
+    currentDistance[RIGHT] = MOVE_getDistanceMM(RIGHT);
+  }
+  g_leftSpeed = 0;
+  g_rightSpeed = 0;
+  MOTOR_SetSpeed(LEFT, g_leftSpeed);
+  MOTOR_SetSpeed(RIGHT, g_rightSpeed);
+  SerialPrintf("Distance final est de %i et %i sur %i\n", (int)MOVE_getDistanceMM(LEFT), (int)MOVE_getDistanceMM(RIGHT), (int)distanceMM);
+}
+
 void MOVE_Rotation2Roues(float angle)
 {
   //Consigne de distance pour la roue opposé au virage afin d'arriver à l'angle voulu. 
-  int32_t angleEnDistance = ((PI*MOVE_LARGEUR_ROBOT*angle)/360);
+  int32_t angleEnDistance = ((2*PI*MOVE_LARGEUR_ROBOT*angle)/360)/2;
+  float speed = 0.5;
   angleEnDistance -= MOVE_GuessDecelerationDistance(0.0, 0.4, 100);//Estimation de la distance requis pour ralentir.
   //Reset les encodeurss
   ENCODER_Reset(0);
   ENCODER_Reset(1);
 
-  MOVE_vAccelerationInverted(0.4, 100);
+  MOVE_vAccelerationInverted(speed, 100);
   int32_t distanceActuelleL = MOVE_getDistanceMM(LEFT);
 
-  while( distanceActuelleL < angleEnDistance )
+  while((distanceActuelleL*100/angleEnDistance) < MOVE_SLOW_AT_PERCENT)
   {
     distanceActuelleL = MOVE_getDistanceMM(LEFT);
     //ajuste la vitesse de la roue droite
-    g_rightSpeed = -0.4 + fSpeedAdjustment();
+    g_rightSpeed = -speed;
     MOTOR_SetSpeed(RIGHT, g_rightSpeed);
     SerialPrintf("Distance fait: %imm\n", distanceActuelleL);
   }
-  //Stop la roue qui tourne.
-  MOVE_vAccelerationInverted(0.0, 100);
+
+  MOVE_FinduPivot(angleEnDistance, speed);
+
 }
 
 
@@ -381,6 +425,11 @@ void setup(){
     MOVE_Rotation1Roue(215, LEFT);
     delay(1000);  
   }*/
+  while(1)
+  {
+    while(!ROBUS_IsBumper(3));
+    MOVE_Rotation2Roues(180);  
+  }
   while(!ROBUS_IsBumper(3)){
   }
   
@@ -410,7 +459,7 @@ void loop() {
     MOVE_vAvancer(0.5,1000);
 
     // posez pas de questions ca fait 180
-    MOVE_Rotation2Roues(115);
+    MOVE_Rotation2Roues(180);
 
     // début du retour
 
