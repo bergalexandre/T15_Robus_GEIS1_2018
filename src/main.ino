@@ -11,8 +11,9 @@ Date: 01 oct 2018
 *******************************************************************************/
 
 #include <LibRobus.h> 
-#include "move.h"
 #include <stdarg.h> //Pour imprimer sur le port série comme si c'était un printf
+#include "move.h"
+#include "capteurs.h"
 
 /*******************************************************************************
  * Define
@@ -404,6 +405,34 @@ void MOVE_Rotation2Roues(float angle)
 
 }
 
+// Fonction pour les capteurs
+
+/**
+ * @brief Lit le capteur pour la pin analogique donnée
+ * 
+ * @param {type} ID 
+ * @return int32_t 
+ */
+int32_t CAPTEUR_distanceIR(int ID) 
+{
+  //Verifie qu'on a un capteur IR
+  double distance = 0;
+  if(ID == CAPTEUR_IR_DISTANCE_DROIT || ID == CAPTEUR_IR_DISTANCE_GAUCHE)
+  {
+    int lectureCapteur = analogRead(ID);
+    //Formule: https://www.upgradeindustries.com/product/58/Sharp-10-80cm-Infrared-Distance-Sensor-(GP2Y0A21YK0F)
+    distance = 123438.5 * pow(lectureCapteur,-1.15);
+    if(DEBUG_CAPTEUR)
+    {
+      Serial.print("Distance(mm): ");
+      Serial.print(distance);
+      Serial.print("tension(v): ");
+      Serial.println(((float)lectureCapteur/0x3ff)*5);
+    }
+  }
+  //Perte des dixième de millimètre
+  return (int32_t)distance;
+}
 
 void setup(){
   BoardInit();
@@ -412,54 +441,22 @@ void setup(){
   g_rightSpeed = 0;
   MOTOR_SetSpeed(LEFT, 0.0);
   MOTOR_SetSpeed(RIGHT, 0.0);
-  while(!ROBUS_IsBumper(3)){
-  }
   
+  //Configure les PINS de capteurs IR comme entré sans pull up.
+  pinMode(CAPTEUR_IR_DISTANCE_DROIT, INPUT);
+  pinMode(CAPTEUR_IR_DISTANCE_GAUCHE, INPUT);
 }
-
-
 
 void loop() {
   // SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
-  while(1)
+  if(ROBUS_IsBumper(3))
   {
-    // début de l'aller
-    MOVE_vAvancer(MOVE_MAX_SPEED,2000,300);
-    MOVE_Rotation1Roue(90,LEFT);
-    MOVE_vAvancer(0.5,300);
-    MOVE_Rotation1Roue(90,RIGHT);
-    MOVE_vAvancer(0.5,200);
-    MOVE_Rotation1Roue(90,RIGHT);
-    MOVE_vAvancer(0.45,150);
-    MOVE_Rotation1Roue(45,LEFT);
-    MOVE_vAvancer(0.60,550);
-    MOVE_Rotation1Roue(90,LEFT);
-    MOVE_vAvancer(0.5,550);
-    MOVE_Rotation1Roue(45,RIGHT);
-    MOVE_vAvancer(0.5,180);
-    MOVE_Rotation1Roue(14,RIGHT);
-    MOVE_vAvancer(0.5,1000);
-
-    // posez pas de questions ca fait 180
-    MOVE_Rotation2Roues(180);
-
-    // début du retour
-
-    MOVE_vAvancer(0.5,965);
-    MOVE_Rotation1Roue(10,LEFT);
-    MOVE_vAvancer(0.5,180);
-    MOVE_Rotation1Roue(45,LEFT);
-    MOVE_vAvancer(0.5,550);
-    MOVE_Rotation1Roue(90,RIGHT);
-    MOVE_vAvancer(0.5,580);
-    MOVE_Rotation1Roue(45,RIGHT);
-    MOVE_vAvancer(0.5,150);
-    MOVE_Rotation1Roue(90,LEFT);
-    MOVE_vAvancer(0.5,200);
-    MOVE_Rotation1Roue(90,LEFT);
-    MOVE_vAvancer(0.5,300);
-    MOVE_Rotation1Roue(90, RIGHT);
-    MOVE_vAvancer(MOVE_MAX_SPEED,2200);
-    delay(50000);
+    int32_t distance[2];
+    distance[RIGHT] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_DROIT);
+    distance[LEFT] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_GAUCHE);
+    Serial.print("Capteur droit(mm)  = ");
+    Serial.println(distance[RIGHT]);
+    Serial.print("Capteur gauche(mm) = ");
+    Serial.println(distance[LEFT]);
   }
 }
