@@ -20,6 +20,7 @@ Date: 01 oct 2018
 
 #define DELAY 50 // Delay in ms
 #define MS_PER_SECOND 1000
+#define TIMER_ID_KICK 1
 
 /*******************************************************************************
  * Prototypes locaux
@@ -34,6 +35,7 @@ char* strFloat(float valeur);
 float g_leftSpeed = 0.0;
 float g_rightSpeed = 0.0;
 char floatbuffer[8]; //mémoire reservé pour afficher des floats
+int kick = 0;
 
 /*******************************************************************************
  * fonctions
@@ -404,6 +406,21 @@ void MOVE_Rotation2Roues(float angle)
 
 }
 
+void Ball_kick(){
+  if (kick ==0){
+    SERVO_SetAngle(0,90);
+    SOFT_TIMER_Enable(TIMER_ID_KICK);
+    Serial.print("Kicked the ball.\n");
+    kick = 1;
+  }
+}  
+
+void Kick_return(){
+  SERVO_SetAngle(0,0);
+  Serial.print("Unkicked the ball.\n");
+  kick = 0;
+}
+
 
 void setup(){
   BoardInit();
@@ -412,54 +429,33 @@ void setup(){
   g_rightSpeed = 0;
   MOTOR_SetSpeed(LEFT, 0.0);
   MOTOR_SetSpeed(RIGHT, 0.0);
-  while(!ROBUS_IsBumper(3)){
-  }
+  SERVO_Enable(0);
+  SOFT_TIMER_SetDelay(TIMER_ID_KICK, 500);
+  SOFT_TIMER_SetRepetition(TIMER_ID_KICK, 1);
+  SOFT_TIMER_SetCallback(TIMER_ID_KICK, &Kick_return);
+  
   
 }
 
 
 
 void loop() {
-  // SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
-  while(1)
-  {
-    // début de l'aller
-    MOVE_vAvancer(MOVE_MAX_SPEED,2000,300);
-    MOVE_Rotation1Roue(90,LEFT);
-    MOVE_vAvancer(0.5,300);
-    MOVE_Rotation1Roue(90,RIGHT);
-    MOVE_vAvancer(0.5,200);
-    MOVE_Rotation1Roue(90,RIGHT);
-    MOVE_vAvancer(0.45,150);
-    MOVE_Rotation1Roue(45,LEFT);
-    MOVE_vAvancer(0.60,550);
-    MOVE_Rotation1Roue(90,LEFT);
-    MOVE_vAvancer(0.5,550);
-    MOVE_Rotation1Roue(45,RIGHT);
-    MOVE_vAvancer(0.5,180);
-    MOVE_Rotation1Roue(14,RIGHT);
-    MOVE_vAvancer(0.5,1000);
-
-    // posez pas de questions ca fait 180
-    MOVE_Rotation2Roues(180);
-
-    // début du retour
-
-    MOVE_vAvancer(0.5,965);
-    MOVE_Rotation1Roue(10,LEFT);
-    MOVE_vAvancer(0.5,180);
-    MOVE_Rotation1Roue(45,LEFT);
-    MOVE_vAvancer(0.5,550);
-    MOVE_Rotation1Roue(90,RIGHT);
-    MOVE_vAvancer(0.5,580);
-    MOVE_Rotation1Roue(45,RIGHT);
-    MOVE_vAvancer(0.5,150);
-    MOVE_Rotation1Roue(90,LEFT);
-    MOVE_vAvancer(0.5,200);
-    MOVE_Rotation1Roue(90,LEFT);
-    MOVE_vAvancer(0.5,300);
-    MOVE_Rotation1Roue(90, RIGHT);
-    MOVE_vAvancer(MOVE_MAX_SPEED,2200);
-    delay(50000);
+  SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
+  
+  if(ROBUS_IsBumper(3)){
+    Ball_kick();
   }
+
+delay(100);
+  
+
+  
+
+
+
+
+
+  
+  
+
 }
