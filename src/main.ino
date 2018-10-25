@@ -12,8 +12,10 @@ Date: 01 oct 2018
 
 #include <LibRobus.h> 
 #include <stdarg.h> //Pour imprimer sur le port série comme si c'était un printf
+#include <Wire.h>
+#include "SparkFunISL29125.h"
 #include "move.h"
-#include "capteurs.h"
+#include "Sortie.h"
 
 /*******************************************************************************
  * Define
@@ -35,6 +37,7 @@ char* strFloat(float valeur);
 float g_leftSpeed = 0.0;
 float g_rightSpeed = 0.0;
 char floatbuffer[8]; //mémoire reservé pour afficher des floats
+SFE_ISL29125 RGB_sensor;
 
 /*******************************************************************************
  * fonctions
@@ -430,33 +433,107 @@ int32_t CAPTEUR_distanceIR(int ID)
       Serial.println(((float)lectureCapteur/0x3ff)*5);
     }
   }
+  if(distance > 800)
+  {
+    distance = 800;
+  }
   //Perte des dixième de millimètre
   return (int32_t)distance;
 }
 
+bool CAPTEUR_detecteurDeLigne(int ID)
+{
+  bool bRet = false;
+  if(ID == CAPTEUR_SUIVEUR_LIGNE_GAUCHE || ID == CAPTEUR_SUIVEUR_LIGNE_MILIEU || ID == CAPTEUR_SUIVEUR_LIGNE_DROIT)
+  {
+    int lectureCapteur = analogRead(ID);
+    float tension = (float)lectureCapteur/0x3ff * 5.0;
+
+    Serial.print("Tension = ");
+    Serial.println(tension);
+
+    //Si la tension est supérieur à deux volts, on dit qu'une ligne est vu.
+    if(tension >= 2.0)
+    {
+      bRet = true;
+    }
+  }
+  else
+  {
+    Serial.print("Mauvaise ID pour sensor de ligne\n");
+  }
+  return bRet;  
+}
+
 void setup(){
   BoardInit();
-  Serial.begin(9600);
+  //Ne pas changer la valeur puisque le capteur de couleur communique en 115200 Bauds.
+  Serial.begin(115200);
   g_leftSpeed = 0;
   g_rightSpeed = 0;
   MOTOR_SetSpeed(LEFT, 0.0);
   MOTOR_SetSpeed(RIGHT, 0.0);
   
+  //Initialise le capteur de couleur ISL29125.
+  if (RGB_sensor.init())
+  {
+    Serial.println("Capteur de couleur initialisation: Success\n\r");
+  }
+  else
+  {
+    Serial.println("Capteur de couleur initialisation: Failure\n\r");
+  }
+
   //Configure les PINS de capteurs IR comme entré sans pull up.
-  pinMode(CAPTEUR_IR_DISTANCE_DROIT, INPUT);
-  pinMode(CAPTEUR_IR_DISTANCE_GAUCHE, INPUT);
+  pinMode(CAPTEUR_IR_DISTANCE_BAS, INPUT);
+  pinMode(CAPTEUR_IR_DISTANCE_HAUT, INPUT);
+
+  //Configure les PINS de capteur de ligne comme étant des entrés.
+  pinMode(CAPTEUR_SUIVEUR_LIGNE_DROIT, INPUT);
+  pinMode(CAPTEUR_SUIVEUR_LIGNE_MILIEU, INPUT);
+  pinMode(CAPTEUR_SUIVEUR_LIGNE_GAUCHE, INPUT);
 }
 
 void loop() {
   // SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
-  if(ROBUS_IsBumper(3))
-  {
-    int32_t distance[2];
-    distance[RIGHT] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_DROIT);
-    distance[LEFT] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_GAUCHE);
-    Serial.print("Capteur droit(mm)  = ");
-    Serial.println(distance[RIGHT]);
-    Serial.print("Capteur gauche(mm) = ");
-    Serial.println(distance[LEFT]);
-  }
+  //if(ROBUS_IsBumper(3))
+  //{
+  int32_t distance[2];
+  distance[BAS] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_BAS);
+  distance[HAUT] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_HAUT);
+ 
+  //distance[LEFT] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_GAUCHE);
+  Serial.print("Capteur haut(mm)  = "); Serial.println(distance[HAUT]);
+  Serial.print("Capteur bas(mm) = "); Serial.println(distance[BAS]);
+
+  //Vérifie la couleur
+  /*
+  unsigned int rouge = RGB_sensor.readRed();
+  unsigned int vert = RGB_sensor.readGreen();
+  unsigned int bleu = RGB_sensor.readBlue();
+  Serial.print("Couleur Rouge = "); Serial.println(rouge, HEX); 
+  Serial.print("Couleur Verte = "); Serial.println(vert, HEX); 
+  Serial.print("Couleur Bleu = "); Serial.println(bleu, HEX);
+  
+
+  //Vérifie les lignes
+  Serial.print("Detecteur de ligne A13 = "); 
+  Serial.println(CAPTEUR_detecteurDeLigne(CAPTEUR_SUIVEUR_LIGNE_GAUCHE) == true?"TRUE": "FALSE"); 
+  Serial.print("Detecteur de ligne A14 = "); 
+  Serial.println(CAPTEUR_detecteurDeLigne(CAPTEUR_SUIVEUR_LIGNE_MILIEU) == true?"TRUE": "FALSE"); 
+  Serial.print("Detecteur de ligne A15 = "); 
+  Serial.println(CAPTEUR_detecteurDeLigne(CAPTEUR_SUIVEUR_LIGNE_DROIT) == true?"TRUE": "FALSE"); 
+  */
+  delay(500);
+  //}
+    //Start up
+
+
+    //Trouver la balle
+
+
+    //Foncer dans la balle
+
+
+    //Activer servo moteur
 }
