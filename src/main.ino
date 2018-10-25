@@ -492,8 +492,8 @@ void test_CapteurIR()
   int32_t distance[2];
   distance[BAS] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_BAS);
   distance[HAUT] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_HAUT);
-  Serial.print("Capteur haut(mm)  = "); Serial.println(distance[HAUT]);
-  Serial.print("Capteur bas(mm) = "); Serial.println(distance[BAS]);
+  Serial.print("Capteur haut(mm)  = "); Serial.println(distance[1]);
+  Serial.print("Capteur bas(mm) = "); Serial.println(distance[0]);
 }
 
 void test_CapteurCouleur()
@@ -572,8 +572,18 @@ void setup(){
 
 void loop() {
   SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
-  
-  
-  Ball_kick();
+  int distance[2] = {0};
+  distance[0] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_BAS);
+  distance[1] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_HAUT);
+
+  //Vérifie que le capteur du haut et du bas retourne une distance différente de 10cm
+  if((distance[1]-distance[0]) > 100)
+  {
+    //Vérifie que la balle est à proximiter de 15cm.
+    if(distance[0] < 150)
+    {
+      Ball_kick();
+    }
+  }
   delay(100);
 }

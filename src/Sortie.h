@@ -1,8 +1,6 @@
 #ifndef __CAPTEUR_H__
 #define __CAPTEUR_H__
 
-#define BAS 0
-#define HAUT 1
 #define CAPTEUR_IR_DISTANCE_BAS   A0
 #define CAPTEUR_IR_DISTANCE_HAUT  A1
 
