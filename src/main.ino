@@ -490,8 +490,8 @@ bool CAPTEUR_detecteurDeLigne(int ID)
 void test_CapteurIR()
 {
   int32_t distance[2];
-  distance[BAS] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_BAS);
-  distance[HAUT] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_HAUT);
+  distance[0] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_BAS);
+  distance[1] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_HAUT);
   Serial.print("Capteur haut(mm)  = "); Serial.println(distance[1]);
   Serial.print("Capteur bas(mm) = "); Serial.println(distance[0]);
 }
