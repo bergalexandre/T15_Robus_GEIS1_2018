@@ -435,7 +435,6 @@ void Kick_return(){
   // enlever l'ignore dans le kick
 }
 
-<<<<<<< Updated upstream
 /*********************** Fonction pour les capteurs  ************************/
 
 /**
@@ -468,31 +467,12 @@ int32_t CAPTEUR_distanceIR(int ID)
   }
   //Perte des dixième de millimètre
   return (int32_t)distance;
-=======
+}
 void Kick_disable(){
   SERVO_Disable(1);
   SERVO_Disable(0);
 }
 
-void setup(){
-  BoardInit();
-  Serial.begin(9600);
-  g_leftSpeed = 0;
-  g_rightSpeed = 0;
-  MOTOR_SetSpeed(LEFT, 0.0);
-  MOTOR_SetSpeed(RIGHT, 0.0);
-  SERVO_Disable(0);
-  SERVO_Disable(1);
-  SOFT_TIMER_SetDelay(TIMER_ID_KICK, 500);
-  SOFT_TIMER_SetRepetition(TIMER_ID_KICK, 1);
-  SOFT_TIMER_SetCallback(TIMER_ID_KICK, &Kick_return);
-  SOFT_TIMER_SetDelay(TIMER_ID_KICK_DISABLE,500);
-  SOFT_TIMER_SetRepetition(TIMER_ID_KICK_DISABLE, 1);
-  SOFT_TIMER_SetCallback(TIMER_ID_KICK_DISABLE, &Kick_disable);
-  
-  
->>>>>>> Stashed changes
-}
 
 bool CAPTEUR_detecteurDeLigne(int ID)
 {
