@@ -522,7 +522,7 @@ bool CAPTEUR_detecteurDeLigne(int ID)
 
 bool checkForSifflet(){
 
-  if(analogRead(SIFFLET_PIN) > 370){
+  if(analogRead(SIFFLET_PIN) > 410){
     if(siffletFirstTime){
       voltage = analogRead(SIFFLET_PIN);
       siffletFirstTime = false;
@@ -530,9 +530,9 @@ bool checkForSifflet(){
       Serial.print("First time\n");
     } 
     else{
-      if((analogRead(SIFFLET_PIN) < (voltage + 50)) && (analogRead(SIFFLET_PIN) > (voltage - 50))){
+      if((analogRead(SIFFLET_PIN) < (voltage + 30)) && (analogRead(SIFFLET_PIN) > (voltage - 30))){
         Serial.print("tu rentre dans lthreshold\n");
-        if(millis() - deltaTime >= 1000){
+        if(millis() - deltaTime >= 1500){
           MOTOR_SetSpeed(0,0.) ;
           MOTOR_SetSpeed(1,0.);
           Serial.print("tu stop\n");
