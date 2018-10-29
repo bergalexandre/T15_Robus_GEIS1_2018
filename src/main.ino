@@ -588,7 +588,11 @@ void loop() {
   int distance[2] = {0};
   distance[0] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_BAS);
   distance[1] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_HAUT);
+  
 
+  MOVE_vAvancer(0.5, 1000);
+
+  
   //Vérifie que le capteur du haut et du bas retourne une distance différente de 10cm
   if((distance[1]-distance[0]) > 100)
   {
@@ -598,5 +602,14 @@ void loop() {
       Ball_kick();
     }
   }
+  // verifie si les capteurs voient une distance similaire (moins de 5 cm de diff) 
+  else if ((distance[1]-distance[0]<50)){
+    // tourne si le capteur du haut est a moins de 10 cm d'un obstacle
+    if (distance[1]<100){
+      MOVE_Rotation2Roues(90);
+    }
+  }
+  
+
   delay(100);
 }
