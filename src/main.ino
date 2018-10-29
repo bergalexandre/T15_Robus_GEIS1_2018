@@ -25,8 +25,20 @@ Date: 01 oct 2018
 #define MS_PER_SECOND 1000
 #define TIMER_ID_KICK 1
 #define TIMER_ID_KICK_DISABLE 2
+#define TIMER_ID_STATE 3
 #define KICKER 0
 #define GOALER 1
+
+//enum
+
+typedef enum
+{
+  avance,
+  stop,
+  pivote,
+  kick_ball,
+  recule
+} state_t;
 
 /*******************************************************************************
  * Prototypes locaux
@@ -48,6 +60,8 @@ int robot;
 int deltaTime = millis();
 int voltage = 0;
 bool siffletFirstTime = true;
+state_t robot_state = avance;
+
 /*******************************************************************************
  * fonctions
 *******************************************************************************/
@@ -106,7 +120,7 @@ float fSpeedAdjustment(){
   }
 
   fAdjustement = (float)i32DeltaPulse * MOVE_DERIVATIVE_ADJUSTEMENT_FACTOR;
-  SerialPrintf("vitesse ajuste: %s\n", strFloat(fAdjustement));
+ // SerialPrintf("vitesse ajuste: %s\n", strFloat(fAdjustement));
   return fAdjustement;
 }
 
@@ -522,7 +536,7 @@ bool CAPTEUR_detecteurDeLigne(int ID)
 
 bool checkForSifflet(){
 
-  if(analogRead(SIFFLET_PIN) > 410){
+  if(analogRead(SIFFLET_PIN) > 370){
     if(siffletFirstTime){
       voltage = analogRead(SIFFLET_PIN);
       siffletFirstTime = false;
@@ -602,6 +616,9 @@ void setup_timers()
   SOFT_TIMER_SetDelay(TIMER_ID_KICK, 300);
   SOFT_TIMER_SetRepetition(TIMER_ID_KICK, 1);
   SOFT_TIMER_SetCallback(TIMER_ID_KICK, &Kick_return);
+  SOFT_TIMER_SetDelay(TIMER_ID_STATE, 1500);
+  SOFT_TIMER_SetRepetition(TIMER_ID_STATE, 1);
+  SOFT_TIMER_SetCallback(TIMER_ID_STATE, &changeMode);
 }
 
 void setup_Sorties()
@@ -614,7 +631,6 @@ void setup_Sorties()
   pinMode(CAPTEUR_SUIVEUR_LIGNE_DROIT, INPUT);
   pinMode(CAPTEUR_SUIVEUR_LIGNE_MILIEU, INPUT);
   pinMode(CAPTEUR_SUIVEUR_LIGNE_GAUCHE, INPUT);
-
 }
 
 int setup_ISL29125()
@@ -641,7 +657,11 @@ void setup_Moteurs()
   MOTOR_SetSpeed(LEFT, 0.0);
   MOTOR_SetSpeed(RIGHT, 0.0);
   SERVO_Enable(0);
-  SERVO_SetAngle(1,110);
+  SERVO_Enable(1);
+  while (!ROBUS_IsBumper(2)){
+
+  }
+  SERVO_SetAngle(1, 110);
 
 }
 
@@ -662,28 +682,136 @@ void setup(){
   delay(5000);
 }
 
-void attaquant(){
-  int distance[2] = {0};
-  distance[0] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_BAS);
-  distance[1] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_HAUT);
-  checkForSifflet();
-  //Vérifie que le capteur du haut et du bas retourne une distance différente de 10cm
-  if((distance[1]-distance[0]) > 100){
-    //Vérifie que la balle est à proximiter de 15cm.
-    if(distance[0] < 150){
-      Ball_kick();
+bool IsEncodeurStuck(int ID)
+{
+  bool ret = false;
+  static unsigned long startTime[2] = {millis(), millis()};
+  unsigned long currentTime = millis();
+  static int32_t previousEncoder[2];
+  memset(previousEncoder, 0, sizeof(previousEncoder));
+  int32_t currentEncoder = ENCODER_Read(ID);
+
+  if(previousEncoder[ID] > currentEncoder)
+  {
+    previousEncoder[ID] = 0;
+  }
+  else
+  {
+    if(previousEncoder[ID] <= (currentEncoder+100))
+    {
+      if(currentTime-startTime[ID] > 3000)
+      {
+        ret = true;
+        startTime[ID] = millis();
+      }
+    }
+    else
+    {
+      startTime[ID] = millis();
     }
   }
-  // verifie si les capteurs voient une distance similaire (moins de 5 cm de diff) 
-  else if ((distance[1]-distance[0]<50)){
-    // tourne si le capteur du haut est a moins de 15 cm d'un obstacle
-    if (distance[1]<150){
-      MOVE_Rotation2Roues(90);
+  previousEncoder[ID] = currentEncoder;
+  return ret;
+}
+
+bool IsObstacle(int distance_bas, int distance_haut)
+{
+  bool ret = false;
+  if(distance_bas <= 250 && distance_haut <= 250)
+  {
+    ret = true;
+  }
+  return ret;
+}
+
+bool IsBalle(int distance_bas, int distance_haut)
+{
+  bool ret = false;
+  Serial.print("Distance_bas = "); Serial.println(distance_bas);
+  if(distance_bas < 150)
+  {
+    ret = true;
+  }
+  return ret;
+}
+
+void changeMode()
+{
+  robot_state = avance;
+  ENCODER_Reset(RIGHT);
+  ENCODER_Reset(LEFT);
+}
+
+void attaquant(){
+  int distance[2] = {0};
+  static state_t previousState = avance;
+  distance[0] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_BAS);
+  distance[1] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_HAUT);
+ // checkForSifflet();
+
+  if(robot_state == avance)
+  {
+    //Si un mur ou robot
+    if(IsObstacle(distance[0], distance[1]))
+    {
+      //Coupe les moteurs
+      robot_state = stop;
+      Serial.print("Obstacle!\n");
     }
-    else if (distance[1]>=150){
-      MOTOR_SetSpeed(0,0.7);
-      MOTOR_SetSpeed(1,0.7+fSpeedAdjustment());
+    //Si une balle
+    else if(IsBalle(distance[0], distance[1]))
+    {
+      robot_state = kick_ball;
+      Serial.print("Balle!\n");
     }
+    else if(IsEncodeurStuck(LEFT) || IsEncodeurStuck(RIGHT))
+    {
+      robot_state = recule;
+    }
+    //Mode par défaut
+    else
+    {
+      robot_state = avance;
+     // Serial.print("Avance!\n");
+    }
+  }
+
+  switch(robot_state)
+  {
+    case avance:
+      MOTOR_SetSpeed(LEFT, 0.7);
+      MOTOR_SetSpeed(RIGHT, 0.7+fSpeedAdjustment());
+      break;
+    case stop:
+      MOTOR_SetSpeed(LEFT, 0.0);
+      MOTOR_SetSpeed(RIGHT, 0.0);
+      break;
+    case kick_ball:
+      Ball_kick();
+      robot_state = avance;
+      break;
+    case pivote:
+      if(previousState != robot_state)
+      {
+        SOFT_TIMER_Enable(TIMER_ID_STATE);
+      }
+      MOTOR_SetSpeed(LEFT, 0.3);
+      MOTOR_SetSpeed(RIGHT, -0.3);
+      break;
+    case recule:
+      if(previousState != robot_state)
+      {
+        SOFT_TIMER_Enable(TIMER_ID_STATE);
+      }
+      MOTOR_SetSpeed(LEFT, -0.4);
+      MOTOR_SetSpeed(RIGHT, -0.7);
+      break;
+  }
+  delay(200);
+  previousState = robot_state;
+  if(robot_state == stop)
+  {
+    robot_state = pivote;
   }
 }
 
