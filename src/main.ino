@@ -25,6 +25,8 @@ Date: 01 oct 2018
 #define MS_PER_SECOND 1000
 #define TIMER_ID_KICK 1
 #define TIMER_ID_KICK_DISABLE 2
+#define KICKER 0
+#define GOALER 1
 
 /*******************************************************************************
  * Prototypes locaux
@@ -41,6 +43,7 @@ float g_rightSpeed = 0.0;
 char floatbuffer[8]; //mémoire reservé pour afficher des floats
 int kick = 0;
 SFE_ISL29125 RGB_sensor;
+int robot;
 
 /*******************************************************************************
  * fonctions
@@ -273,7 +276,8 @@ void MOVE_vAvancer(float fVitesse, int32_t i32Distance_mm,unsigned int accelerat
   ENCODER_Reset(0);
   ENCODER_Reset(1);
 
-  MOVE_vAcceleration(fVitesse, accelerationTime);
+  g_leftSpeed = fVitesse;
+  MOTOR_SetSpeed(LEFT,g_leftSpeed);
   while(MOVE_getDistanceMM(LEFT) < i32Distance_mm)
   {
     SerialPrintf("Distance fait = %i mm\n", MOVE_getDistanceMM(LEFT));
@@ -389,7 +393,7 @@ void MOVE_Rotation2Roues(float angle)
 {
   //Consigne de distance pour la roue opposé au virage afin d'arriver à l'angle voulu. 
   int32_t angleEnDistance = ((2*PI*MOVE_LARGEUR_ROBOT*angle)/360)/2;
-  float speed = 0.5;
+  float speed = 0.7;
   angleEnDistance -= MOVE_GuessDecelerationDistance(0.0, 0.4, 100);//Estimation de la distance requis pour ralentir.
   //Reset les encodeurss
   ENCODER_Reset(0);
@@ -417,7 +421,7 @@ void Ball_kick(){
   if (kick ==0){
     SERVO_Enable(0);
     SERVO_Enable(1);
-    SERVO_SetAngle(0,90);
+    SERVO_SetAngle(0,110);
     SERVO_SetAngle(1,0);
     SOFT_TIMER_Enable(TIMER_ID_KICK);
     Serial.print("Kicked the ball.\n");
@@ -428,7 +432,7 @@ void Ball_kick(){
 
 void Kick_return(){
   SERVO_SetAngle(0,0);
-  SERVO_SetAngle(1,90);
+  SERVO_SetAngle(1,110);
   Serial.print("Unkicked the ball.\n");
   kick = 0;
   SOFT_TIMER_Enable(TIMER_ID_KICK_DISABLE);
@@ -551,17 +555,21 @@ void setup_Sorties()
   pinMode(CAPTEUR_SUIVEUR_LIGNE_GAUCHE, INPUT);
 }
 
-void setup_ISL29125()
+int setup_ISL29125()
 {
   //Initialise le capteur de couleur ISL29125.
+  int defenseur;
   if (RGB_sensor.init())
   {
     Serial.println("Capteur de couleur initialisation: Success\n\r");
+    defenseur = GOALER;
   }
   else
   {
     Serial.println("Capteur de couleur initialisation: Failure\n\r");
+    defenseur = KICKER;
   }
+  return defenseur;
 }
 
 void setup_Moteurs()
@@ -571,45 +579,58 @@ void setup_Moteurs()
   MOTOR_SetSpeed(LEFT, 0.0);
   MOTOR_SetSpeed(RIGHT, 0.0);
   SERVO_Enable(0);
+
 }
+
 
 void setup(){
   BoardInit();
   //Ne pas changer la valeur puisque le capteur de couleur communique en 115200 Bauds.
   Serial.begin(115200);
-  setup_ISL29125();
+  robot = setup_ISL29125();
   setup_Moteurs();
   setup_Sorties();
   setup_timers();
 }
 
-void loop() {
-  SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
+void attaquant(){
   int distance[2] = {0};
   distance[0] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_BAS);
   distance[1] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_HAUT);
-  
-
-  MOVE_vAvancer(0.5, 1000);
-
-  
   //Vérifie que le capteur du haut et du bas retourne une distance différente de 10cm
-  if((distance[1]-distance[0]) > 100)
-  {
+  if((distance[1]-distance[0]) > 100){
     //Vérifie que la balle est à proximiter de 15cm.
-    if(distance[0] < 150)
-    {
+    if(distance[0] < 150){
       Ball_kick();
     }
   }
   // verifie si les capteurs voient une distance similaire (moins de 5 cm de diff) 
   else if ((distance[1]-distance[0]<50)){
-    // tourne si le capteur du haut est a moins de 10 cm d'un obstacle
-    if (distance[1]<100){
+    // tourne si le capteur du haut est a moins de 15 cm d'un obstacle
+    if (distance[1]<150){
       MOVE_Rotation2Roues(90);
     }
+    else if (distance[1]>=150){
+      MOTOR_SetSpeed(0,0.7);
+      MOTOR_SetSpeed(1,0.7+fSpeedAdjustment());
+    }
   }
+}
+
+void goaler(){
+  MOVE_vAvancer(0.5, 600);
+  MOVE_vAvancer(0.5,-600);
+}
   
 
+
+void loop() {
+SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
+  if (robot == GOALER){
+    goaler();
+  }
+  else if (robot == KICKER){
+    attaquant();
+  }
   delay(100);
 }
