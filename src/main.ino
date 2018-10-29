@@ -536,7 +536,7 @@ bool CAPTEUR_detecteurDeLigne(int ID)
 
 bool checkForSifflet(){
 
-  if(analogRead(SIFFLET_PIN) > 370){
+  if(analogRead(SIFFLET_PIN) > 410){
     if(siffletFirstTime){
       voltage = analogRead(SIFFLET_PIN);
       siffletFirstTime = false;
