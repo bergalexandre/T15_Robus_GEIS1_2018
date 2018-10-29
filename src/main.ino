@@ -45,6 +45,9 @@ int kick = 0;
 SFE_ISL29125 RGB_sensor;
 int robot;
 
+int deltaTime = millis();
+int voltage = 0;
+bool siffletFirstTime = true;
 /*******************************************************************************
  * fonctions
 *******************************************************************************/
@@ -502,6 +505,46 @@ bool CAPTEUR_detecteurDeLigne(int ID)
   return bRet;  
 }
 
+bool checkForSifflet(){
+
+  if(analogRead(SIFFLET_PIN) > 410){
+    if(siffletFirstTime){
+      voltage = analogRead(SIFFLET_PIN);
+      siffletFirstTime = false;
+      deltaTime = millis();
+      Serial.print("First time\n");
+    } 
+    else{
+      if((analogRead(SIFFLET_PIN) < (voltage + 50)) && (analogRead(SIFFLET_PIN) > (voltage - 50))){
+        Serial.print("tu rentre dans lthreshold\n");
+        if(millis() - deltaTime >= 1000){
+          MOTOR_SetSpeed(0,0.) ;
+          MOTOR_SetSpeed(1,0.);
+          Serial.print("tu stop\n");
+          delay(10000);
+          siffletFirstTime = true;
+          deltaTime = millis();
+          voltage = 0;
+
+        }
+        return true;
+      }
+      else{
+        deltaTime = millis();
+  siffletFirstTime = true;
+  voltage = 0;
+  return false;
+      }
+    }
+  }
+  else{
+  deltaTime = millis();
+  siffletFirstTime = true;
+  voltage = 0;
+  return false; 
+  }
+}
+
 /******************* Fonctions pour tester les capteurs ***************************/
 
 void test_CapteurIR()
@@ -591,6 +634,8 @@ void setup(){
   setup_Moteurs();
   setup_Sorties();
   setup_timers();
+  MOTOR_SetSpeed(RIGHT,0.4);
+  MOTOR_SetSpeed(LEFT,0.4);
 }
 
 void attaquant(){
