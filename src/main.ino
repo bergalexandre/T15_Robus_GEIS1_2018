@@ -282,6 +282,7 @@ void MOVE_vAvancer(float fVitesse, int32_t i32Distance_mm,unsigned int accelerat
 
   g_leftSpeed = fVitesse;
   MOTOR_SetSpeed(LEFT,g_leftSpeed);
+  if(i32Distance_mm  > 0){
   while(MOVE_getDistanceMM(LEFT) < i32Distance_mm)
   {
     checkForSifflet();
@@ -290,8 +291,20 @@ void MOVE_vAvancer(float fVitesse, int32_t i32Distance_mm,unsigned int accelerat
     MOTOR_SetSpeed(RIGHT, g_rightSpeed);
     delay(50);
   }
+  }
+  else{
+    while(MOVE_getDistanceMM(LEFT) > i32Distance_mm)
+  {
+    checkForSifflet();
+    SerialPrintf("Distance fait = %i mm\n", MOVE_getDistanceMM(LEFT));
+    g_rightSpeed = fVitesse - fSpeedAdjustment();
+    MOTOR_SetSpeed(RIGHT, g_rightSpeed);
+    delay(50);
+  }
+  }
+
   // Arrête le mouvement
-  MOVE_vAcceleration(0.0, 100);
+  MOVE_vAcceleration(0.0, 100 );
 }
 
 void MOVE_finDuVirage(int ID, int32_t distanceMM, float speed)
@@ -509,7 +522,7 @@ bool CAPTEUR_detecteurDeLigne(int ID)
 
 bool checkForSifflet(){
 
-  if(analogRead(SIFFLET_PIN) > 410){
+  if(analogRead(SIFFLET_PIN) > 370){
     if(siffletFirstTime){
       voltage = analogRead(SIFFLET_PIN);
       siffletFirstTime = false;
@@ -524,6 +537,9 @@ bool checkForSifflet(){
           MOTOR_SetSpeed(1,0.);
           Serial.print("tu stop\n");
           delay(10000);
+          MOTOR_SetSpeed(LEFT,g_leftSpeed) ;
+          MOTOR_SetSpeed(RIGHT,g_rightSpeed);
+          
           siffletFirstTime = true;
           deltaTime = millis();
           voltage = 0;
@@ -599,8 +615,6 @@ void setup_Sorties()
   pinMode(CAPTEUR_SUIVEUR_LIGNE_MILIEU, INPUT);
   pinMode(CAPTEUR_SUIVEUR_LIGNE_GAUCHE, INPUT);
 
-  // configure les boutons
-  pinMode(BOUTON_VERT, INPUT_PULLUP);
 }
 
 int setup_ISL29125()
@@ -674,14 +688,15 @@ void attaquant(){
 }
 
 void goaler(){
-  MOVE_vAvancer(0.5, 600);
-  MOVE_vAvancer(0.5,-600);
+  MOVE_vAvancer(0.3, 350);
+  MOVE_vAvancer(-0.3,-350);
 }
   
 
 
 void loop() {
 SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
+robot = GOALER;
   if (robot == GOALER){
     goaler();
   }
