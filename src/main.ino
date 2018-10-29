@@ -41,7 +41,9 @@ float g_rightSpeed = 0.0;
 char floatbuffer[8]; //mémoire reservé pour afficher des floats
 int kick = 0;
 SFE_ISL29125 RGB_sensor;
-
+int deltaTime = millis();
+int voltage = 0;
+bool siffletFirstTime = true;
 /*******************************************************************************
  * fonctions
 *******************************************************************************/
@@ -498,6 +500,46 @@ bool CAPTEUR_detecteurDeLigne(int ID)
   return bRet;  
 }
 
+bool checkForSifflet(){
+
+  if(analogRead(SIFFLET_PIN) > 410){
+    if(siffletFirstTime){
+      voltage = analogRead(SIFFLET_PIN);
+      siffletFirstTime = false;
+      deltaTime = millis();
+      Serial.print("First time\n");
+    } 
+    else{
+      if((analogRead(SIFFLET_PIN) < (voltage + 50)) && (analogRead(SIFFLET_PIN) > (voltage - 50))){
+        Serial.print("tu rentre dans lthreshold\n");
+        if(millis() - deltaTime >= 1000){
+          MOTOR_SetSpeed(0,0.) ;
+          MOTOR_SetSpeed(1,0.);
+          Serial.print("tu stop\n");
+          delay(10000);
+          siffletFirstTime = true;
+          deltaTime = millis();
+          voltage = 0;
+
+        }
+        return true;
+      }
+      else{
+        deltaTime = millis();
+  siffletFirstTime = true;
+  voltage = 0;
+  return false;
+      }
+    }
+  }
+  else{
+  deltaTime = millis();
+  siffletFirstTime = true;
+  voltage = 0;
+  return false; 
+  }
+}
+
 /******************* Fonctions pour tester les capteurs ***************************/
 
 void test_CapteurIR()
@@ -576,11 +618,13 @@ void setup_Moteurs()
 void setup(){
   BoardInit();
   //Ne pas changer la valeur puisque le capteur de couleur communique en 115200 Bauds.
-  Serial.begin(115200);
-  setup_ISL29125();
-  setup_Moteurs();
-  setup_Sorties();
-  setup_timers();
+  //Serial.begin(115200);
+  //setup_ISL29125();
+ // setup_Moteurs();
+  //setup_Sorties();
+  //setup_timers();
+ // MOTOR_SetSpeed(RIGHT,0.4);
+ //  MOTOR_SetSpeed(LEFT,0.4);
 }
 
 void loop() {
@@ -593,10 +637,10 @@ void loop() {
   if((distance[1]-distance[0]) > 100)
   {
     //Vérifie que la balle est à proximiter de 15cm.
-    if(distance[0] < 150)
-    {
+    if(distance[0] < 150){
       Ball_kick();
     }
   }
+  checkForSifflet();
   delay(100);
 }
