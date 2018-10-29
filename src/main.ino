@@ -747,7 +747,7 @@ void attaquant(){
   static state_t previousState = avance;
   distance[0] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_BAS);
   distance[1] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_HAUT);
- // checkForSifflet();
+  checkForSifflet();
 
   if(robot_state == avance)
   {
@@ -763,10 +763,6 @@ void attaquant(){
     {
       robot_state = kick_ball;
       Serial.print("Balle!\n");
-    }
-    else if(IsEncodeurStuck(LEFT) || IsEncodeurStuck(RIGHT))
-    {
-      robot_state = recule;
     }
     //Mode par défaut
     else
@@ -807,7 +803,7 @@ void attaquant(){
       MOTOR_SetSpeed(RIGHT, -0.7);
       break;
   }
-  delay(200);
+  delay(20);
   previousState = robot_state;
   if(robot_state == stop)
   {
