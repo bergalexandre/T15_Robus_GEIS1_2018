@@ -583,7 +583,7 @@ void test_CapteurLigne()
 
 void setup_timers()
 {
-  SOFT_TIMER_SetDelay(TIMER_ID_KICK, 500);
+  SOFT_TIMER_SetDelay(TIMER_ID_KICK, 300);
   SOFT_TIMER_SetRepetition(TIMER_ID_KICK, 1);
   SOFT_TIMER_SetCallback(TIMER_ID_KICK, &Kick_return);
 }
@@ -598,6 +598,9 @@ void setup_Sorties()
   pinMode(CAPTEUR_SUIVEUR_LIGNE_DROIT, INPUT);
   pinMode(CAPTEUR_SUIVEUR_LIGNE_MILIEU, INPUT);
   pinMode(CAPTEUR_SUIVEUR_LIGNE_GAUCHE, INPUT);
+
+  // configure les boutons
+  pinMode(BOUTON_VERT, INPUT_PULLUP);
 }
 
 int setup_ISL29125()
@@ -624,6 +627,7 @@ void setup_Moteurs()
   MOTOR_SetSpeed(LEFT, 0.0);
   MOTOR_SetSpeed(RIGHT, 0.0);
   SERVO_Enable(0);
+  SERVO_SetAngle(1,110);
 
 }
 
@@ -631,13 +635,17 @@ void setup_Moteurs()
 void setup(){
   BoardInit();
   //Ne pas changer la valeur puisque le capteur de couleur communique en 115200 Bauds.
-  Serial.begin(115200);
+  Serial.begin(9600);
   robot = setup_ISL29125();
   setup_Moteurs();
   setup_Sorties();
   setup_timers();
-  MOTOR_SetSpeed(RIGHT,0.4);
-  MOTOR_SetSpeed(LEFT,0.4);
+  MOTOR_SetSpeed(RIGHT,0);
+  MOTOR_SetSpeed(LEFT,0);
+  while (!ROBUS_IsBumper(2)){
+
+  }
+  delay(5000);
 }
 
 void attaquant(){
