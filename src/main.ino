@@ -618,13 +618,13 @@ void setup_Moteurs()
 void setup(){
   BoardInit();
   //Ne pas changer la valeur puisque le capteur de couleur communique en 115200 Bauds.
-  //Serial.begin(115200);
-  //setup_ISL29125();
- // setup_Moteurs();
-  //setup_Sorties();
-  //setup_timers();
- // MOTOR_SetSpeed(RIGHT,0.4);
- //  MOTOR_SetSpeed(LEFT,0.4);
+  Serial.begin(115200);
+  setup_ISL29125();
+  setup_Moteurs();
+  setup_Sorties();
+  setup_timers();
+  MOTOR_SetSpeed(RIGHT,0.4);
+  MOTOR_SetSpeed(LEFT,0.4);
 }
 
 void loop() {
