@@ -278,15 +278,17 @@ void MOVE_vAcceleration(float finalSpeed, unsigned int time)
 void MOVE_vAvancer(float fVitesse, int32_t i32Distance_mm,unsigned int accelerationTime = 125){
   ENCODER_Reset(0);
   ENCODER_Reset(1);
+  
 
   g_leftSpeed = fVitesse;
   MOTOR_SetSpeed(LEFT,g_leftSpeed);
   while(MOVE_getDistanceMM(LEFT) < i32Distance_mm)
   {
+    checkForSifflet();
     SerialPrintf("Distance fait = %i mm\n", MOVE_getDistanceMM(LEFT));
     g_rightSpeed = fVitesse + fSpeedAdjustment();
     MOTOR_SetSpeed(RIGHT, g_rightSpeed);
-    delay(100);
+    delay(50);
   }
   // Arrête le mouvement
   MOVE_vAcceleration(0.0, 100);
@@ -642,6 +644,7 @@ void attaquant(){
   int distance[2] = {0};
   distance[0] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_BAS);
   distance[1] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_HAUT);
+  checkForSifflet();
   //Vérifie que le capteur du haut et du bas retourne une distance différente de 10cm
   if((distance[1]-distance[0]) > 100){
     //Vérifie que la balle est à proximiter de 15cm.
