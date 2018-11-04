@@ -26,6 +26,7 @@ Date: 01 oct 2018
 #define TIMER_ID_KICK 1
 #define TIMER_ID_KICK_DISABLE 2
 #define TIMER_ID_STATE 3
+#define TIMER_ID_SIFFLET 4
 #define KICKER 0
 #define GOALER 1
 
@@ -46,6 +47,7 @@ typedef enum
 void SerialPrintf(const char *fmt, ...);
 char* strFloat(float valeur);
 
+int sifflet = 0;
 /*******************************************************************************
  * Variables locales
 *******************************************************************************/
@@ -534,46 +536,28 @@ bool CAPTEUR_detecteurDeLigne(int ID)
   return bRet;  
 }
 
-bool checkForSifflet(){
+void resetSifflet()
+{
+  sifflet = 0;
+}
 
-  if(analogRead(SIFFLET_PIN) > 410){
-    if(siffletFirstTime){
-      voltage = analogRead(SIFFLET_PIN);
-      siffletFirstTime = false;
-      deltaTime = millis();
-      Serial.print("First time\n");
-    } 
-    else{
-      if((analogRead(SIFFLET_PIN) < (voltage + 30)) && (analogRead(SIFFLET_PIN) > (voltage - 30))){
-        Serial.print("tu rentre dans lthreshold\n");
-        if(millis() - deltaTime >= 1500){
-          MOTOR_SetSpeed(0,0.) ;
-          MOTOR_SetSpeed(1,0.);
-          Serial.print("tu stop\n");
-          delay(10000);
-          MOTOR_SetSpeed(LEFT,g_leftSpeed) ;
-          MOTOR_SetSpeed(RIGHT,g_rightSpeed);
-          
-          siffletFirstTime = true;
-          deltaTime = millis();
-          voltage = 0;
+void checkForSifflet(){
 
-        }
-        return true;
-      }
-      else{
-        deltaTime = millis();
-  siffletFirstTime = true;
-  voltage = 0;
-  return false;
-      }
-    }
+if(analogRead(SIFFLET_PIN) > 410)
+  {
+    sifflet++;
+    Serial.println(sifflet);
   }
-  else{
-  deltaTime = millis();
-  siffletFirstTime = true;
-  voltage = 0;
-  return false; 
+  if(sifflet == 1)
+  {
+    SOFT_TIMER_Enable(TIMER_ID_SIFFLET); 
+  }
+  if(sifflet >= 27)
+  {
+    MOTOR_SetSpeed(0,0.) ;
+    MOTOR_SetSpeed(1,0.);
+    sifflet = 0;
+    delay(10000);
   }
 }
 
@@ -619,6 +603,9 @@ void setup_timers()
   SOFT_TIMER_SetDelay(TIMER_ID_STATE, 1500);
   SOFT_TIMER_SetRepetition(TIMER_ID_STATE, 1);
   SOFT_TIMER_SetCallback(TIMER_ID_STATE, &changeMode);
+  SOFT_TIMER_SetDelay(TIMER_ID_SIFFLET, 3500);
+  SOFT_TIMER_SetRepetition(TIMER_ID_SIFFLET, 1);
+  SOFT_TIMER_SetCallback(TIMER_ID_SIFFLET, &resetSifflet);
 }
 
 void setup_Sorties()
@@ -745,14 +732,22 @@ void changeMode()
 void attaquant(){
   int distance[2] = {0};
   static state_t previousState = avance;
+  static int counter = 0;
   distance[0] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_BAS);
   distance[1] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_HAUT);
+  //checkForSifflet();
   checkForSifflet();
 
-  if(robot_state == avance)
+  if(robot_state == avance && robot_state != recule)
   {
+    Serial.println(counter);
+    if(counter > 100)
+    {
+      robot_state == recule;
+      counter = 0;
+    }
     //Si un mur ou robot
-    if(IsObstacle(distance[0], distance[1]))
+    else if(IsObstacle(distance[0], distance[1]))
     {
       //Coupe les moteurs
       robot_state = stop;
@@ -777,6 +772,7 @@ void attaquant(){
     case avance:
       MOTOR_SetSpeed(LEFT, 0.7);
       MOTOR_SetSpeed(RIGHT, 0.7+fSpeedAdjustment());
+      counter++;
       break;
     case stop:
       MOTOR_SetSpeed(LEFT, 0.0);
@@ -820,7 +816,7 @@ void goaler(){
 
 void loop() {
 SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
-robot = GOALER;
+robot = KICKER;
   if (robot == GOALER){
     goaler();
   }
