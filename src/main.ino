@@ -16,6 +16,8 @@ Date: 01 oct 2018
 #include "SparkFunISL29125.h"
 #include "move.h"
 #include "Sortie.h"
+#include <Pixy2.h>
+#include <Arduino.h>
 
 /*******************************************************************************
  * Define
@@ -29,6 +31,7 @@ Date: 01 oct 2018
 #define TIMER_ID_SIFFLET 4
 #define KICKER 0
 #define GOALER 1
+Pixy2 pixy;
 
 //enum
 
@@ -643,12 +646,6 @@ void setup_Moteurs()
   g_rightSpeed = 0;
   MOTOR_SetSpeed(LEFT, 0.0);
   MOTOR_SetSpeed(RIGHT, 0.0);
-  SERVO_Enable(0);
-  SERVO_Enable(1);
-  while (!ROBUS_IsBumper(2)){
-
-  }
-  SERVO_SetAngle(1, 110);
 
 }
 
@@ -657,15 +654,13 @@ void setup(){
   BoardInit();
   //Ne pas changer la valeur puisque le capteur de couleur communique en 115200 Bauds.
   Serial.begin(9600);
-  robot = setup_ISL29125();
+  //robot = setup_ISL29125();
   setup_Moteurs();
   setup_Sorties();
   setup_timers();
   MOTOR_SetSpeed(RIGHT,0);
   MOTOR_SetSpeed(LEFT,0);
-  while (!ROBUS_IsBumper(2)){
-
-  }
+  
   delay(5000);
 }
 
@@ -815,13 +810,11 @@ void goaler(){
 
 
 void loop() {
-SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
-robot = KICKER;
-  if (robot == GOALER){
-    goaler();
-  }
-  else if (robot == KICKER){
-    attaquant();
-  }
-  delay(100);
+//SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
+
+
+pixy.ccc.blocks[0].print();
+
+
+
 }
