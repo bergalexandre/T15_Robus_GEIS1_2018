@@ -811,6 +811,7 @@ void goaler(){
 
 void loop() {
 //SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
+Serial.println(pixy.ccc.getBlocks());
 
 
 pixy.ccc.blocks[0].print();
