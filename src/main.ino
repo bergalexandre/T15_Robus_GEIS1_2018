@@ -29,8 +29,7 @@ Date: 01 oct 2018
 #define TIMER_ID_KICK_DISABLE 2
 #define TIMER_ID_STATE 3
 #define TIMER_ID_SIFFLET 4
-#define TIMER_ID_GRAB 5
-#define TIMER_ID_DROP 6
+#define TIMER_ID_DROP 5
 #define KICKER 0
 #define GOALER 1
 Pixy2 pixy;
@@ -473,16 +472,17 @@ void Kick_return(){
 
 void ballGrab(){
   SERVO_Enable(0);
-  SERVO_SetAngle(0, 90);
-  SOFT_TIMER_Enable(TIMER_ID_GRAB);
+  SERVO_SetAngle(0, 80);
+  SOFT_TIMER_Enable(TIMER_ID_DROP);
   Serial.print("Picked up golf ball.\n");
   currently_carrying = 1;
 }
 
 void ballDrop(){
+  SERVO_Enable(0);
   SERVO_SetAngle(0,0);
   SOFT_TIMER_Enable(TIMER_ID_DROP);
-  Serial.print("Dropped the ball.");
+  Serial.print("Dropped the ball.\n");
   currently_carrying = 0;
 }
 
@@ -909,6 +909,6 @@ if (i==15){
   i=0;
 }
 i++;
-delay(100);
+delay(300);
 }
 
