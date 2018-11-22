@@ -29,6 +29,8 @@ Date: 01 oct 2018
 #define TIMER_ID_KICK_DISABLE 2
 #define TIMER_ID_STATE 3
 #define TIMER_ID_SIFFLET 4
+#define TIMER_ID_GRAB 5
+#define TIMER_ID_DROP 6
 #define KICKER 0
 #define GOALER 1
 Pixy2 pixy;
@@ -59,6 +61,7 @@ float g_leftSpeed = 0.0;
 float g_rightSpeed = 0.0;
 char floatbuffer[8]; //mémoire reservé pour afficher des floats
 int kick = 0;
+int currently_carrying = 0;
 SFE_ISL29125 RGB_sensor;
 int robot;
 
@@ -81,8 +84,7 @@ state_t robot_state = avance;
  * Il faudra que je check pourquoi ça print 0 quand on fait ça.
  * 
  */
-void SerialPrintf(const char *format, ...)
-{
+void SerialPrintf(const char *format, ...){
   char buffer[256];
   va_list args;
   va_start(args, format);
@@ -183,8 +185,7 @@ int32_t MOVE_getDistanceMM(int ID)
  * @param {type} finalSpeed 
  * @param {type} time 
  */
-void MOVE_vAccelerationInverted(float finalSpeed, unsigned int time)
-{
+void MOVE_vAccelerationInverted(float finalSpeed, unsigned int time){
   float deltaSpeed = finalSpeed - g_leftSpeed;
   unsigned int wait = MOVE_WAIT;
   float speedIncrementation = deltaSpeed * (float) wait / (float) time;
@@ -219,8 +220,7 @@ void MOVE_vAccelerationInverted(float finalSpeed, unsigned int time)
  * @param {type} time Temps pour lequel le robot doit accélérer/ralentir.
  * @param {type} ID ID de la roue à bouger.
  */
-void MOVE_vAccelerationSingleWheel(float finalSpeed, unsigned int time, int ID, int32_t distanceMM)
-{
+void MOVE_vAccelerationSingleWheel(float finalSpeed, unsigned int time, int ID, int32_t distanceMM){
   float *currentSpeed; //Pointeur vers la variable de vitesse. Quand on le modifie, ça modifie l'autre également.
 
   if(ID == LEFT)
@@ -264,8 +264,7 @@ void MOVE_vAccelerationSingleWheel(float finalSpeed, unsigned int time, int ID, 
  * @param finalSpeed 
  * @param time 
  */
-void MOVE_vAcceleration(float finalSpeed, unsigned int time)
-{
+void MOVE_vAcceleration(float finalSpeed, unsigned int time){
   float deltaSpeed = finalSpeed - g_leftSpeed;
   unsigned int wait = MOVE_WAIT;
   float speedIncrementation = deltaSpeed * (float) wait / (float) time;
@@ -326,8 +325,7 @@ void MOVE_vAvancer(float fVitesse, int32_t i32Distance_mm,unsigned int accelerat
   MOVE_vAcceleration(0.0, 100 );
 }
 
-void MOVE_finDuVirage(int ID, int32_t distanceMM, float speed)
-{
+void MOVE_finDuVirage(int ID, int32_t distanceMM, float speed){
   distanceMM -= 10;
   float *currentSpeed = ID == LEFT? &g_leftSpeed: &g_rightSpeed;
   int32_t currentDistance = MOVE_getDistanceMM(ID);
@@ -357,8 +355,7 @@ void MOVE_finDuVirage(int ID, int32_t distanceMM, float speed)
  * @param angle en degré (L'angle doit être positif)
  * @param Coté vers lequel le robot va tourner 
  */
-void MOVE_Rotation1Roue(float angle, int iRotationDirection)
-{
+void MOVE_Rotation1Roue(float angle, int iRotationDirection){
   // Avance du coté opposé à la direction. Pour ceux qui connaissent pas, le ? C'est un opérateur conditionel.
   //Condition == TRUE ? Fait ça si TRUE: Sinon fait ça si FALSE;
   int ID = iRotationDirection == LEFT ? RIGHT: LEFT;
@@ -384,8 +381,7 @@ void MOVE_Rotation1Roue(float angle, int iRotationDirection)
   MOVE_finDuVirage(ID, angleEnDistance, speed);
 }
 
-void MOVE_FinduPivot(int32_t distanceMM, float speed)
-{
+void MOVE_FinduPivot(int32_t distanceMM, float speed){
   distanceMM -= 10;
   int32_t currentDistance[2];
   currentDistance[LEFT] = MOVE_getDistanceMM(LEFT);
@@ -426,8 +422,7 @@ void MOVE_FinduPivot(int32_t distanceMM, float speed)
   SerialPrintf("Distance final est de %i et %i sur %i\n", (int)MOVE_getDistanceMM(LEFT), (int)MOVE_getDistanceMM(RIGHT), (int)distanceMM);
 }
 
-void MOVE_Rotation2Roues(float angle)
-{
+void MOVE_Rotation2Roues(float angle){
   //Consigne de distance pour la roue opposé au virage afin d'arriver à l'angle voulu. 
   int32_t angleEnDistance = ((2*PI*MOVE_LARGEUR_ROBOT*angle)/360)/2;
   float speed = 0.7;
@@ -474,6 +469,25 @@ void Kick_return(){
   kick = 0;
   SOFT_TIMER_Enable(TIMER_ID_KICK_DISABLE);
   // enlever l'ignore dans le kick
+}
+
+void ballGrab(){
+  SERVO_Enable(0);
+  SERVO_SetAngle(0, 90);
+  SOFT_TIMER_Enable(TIMER_ID_GRAB);
+  Serial.print("Picked up golf ball.\n");
+  currently_carrying = 1;
+}
+
+void ballDrop(){
+  SERVO_SetAngle(0,0);
+  SOFT_TIMER_Enable(TIMER_ID_DROP);
+  Serial.print("Dropped the ball.");
+  currently_carrying = 0;
+}
+
+void saveBatteriesByDisablingServos(){
+  SERVO_Disable(0);
 }
 
 /*********************** Fonction pour les capteurs  ************************/
@@ -609,6 +623,8 @@ void setup_timers()
   SOFT_TIMER_SetDelay(TIMER_ID_SIFFLET, 3500);
   SOFT_TIMER_SetRepetition(TIMER_ID_SIFFLET, 1);
   SOFT_TIMER_SetCallback(TIMER_ID_SIFFLET, &resetSifflet);
+  SOFT_TIMER_SetDelay(TIMER_ID_DROP, 200);
+  SOFT_TIMER_SetCallback(TIMER_ID_DROP, &saveBatteriesByDisablingServos);
 }
 
 void setup_Sorties()
@@ -640,17 +656,13 @@ int setup_ISL29125()
   return defenseur;
 }
 
-void setup_Moteurs()
-{
+void setup_Moteurs(){
   g_leftSpeed = 0;
   g_rightSpeed = 0;
   MOTOR_SetSpeed(LEFT, 0.0);
   MOTOR_SetSpeed(RIGHT, 0.0);
 
 }
-
-
-
 
 bool IsEncodeurStuck(int ID){
   bool ret = false;
@@ -702,8 +714,7 @@ bool IsBalle(int distance_bas, int distance_haut){
   return ret;
 }
 
-void changeMode()
-{
+void changeMode(){
   robot_state = avance;
   ENCODER_Reset(RIGHT);
   ENCODER_Reset(LEFT);
@@ -792,6 +803,7 @@ void goaler(){
   MOVE_vAvancer(-0.3,-350);
 }
 
+
 void pirUS(){
 	delay(100);
 	bool lastPos = LEFT; // derniere position de l'objet a partir de la camera
@@ -876,9 +888,7 @@ void pirUS(){
 
 void setup(){
   BoardInit();
-  //Ne pas changer la valeur puisque le capteur de couleur communique en 115200 Bauds.
   Serial.begin(9600);
-  //robot = setup_ISL29125();
   setup_Moteurs();
   setup_Sorties();
   setup_timers();
@@ -889,12 +899,16 @@ void setup(){
 }
 
 void loop() {
-//SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
-Serial.println(pixy.ccc.getBlocks());
-
-
-pixy.ccc.blocks[0].print();
-
-
-
+SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
+static int i=0;
+if (i==5){
+  ballGrab();
+  }
+if (i==15){
+  ballDrop();
+  i=0;
 }
+i++;
+delay(100);
+}
+
