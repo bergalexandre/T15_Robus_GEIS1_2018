@@ -650,22 +650,9 @@ void setup_Moteurs()
 }
 
 
-void setup(){
-  BoardInit();
-  //Ne pas changer la valeur puisque le capteur de couleur communique en 115200 Bauds.
-  Serial.begin(9600);
-  //robot = setup_ISL29125();
-  setup_Moteurs();
-  setup_Sorties();
-  setup_timers();
-  MOTOR_SetSpeed(RIGHT,0);
-  MOTOR_SetSpeed(LEFT,0);
-  
-  delay(5000);
-}
 
-bool IsEncodeurStuck(int ID)
-{
+
+bool IsEncodeurStuck(int ID){
   bool ret = false;
   static unsigned long startTime[2] = {millis(), millis()};
   unsigned long currentTime = millis();
@@ -696,8 +683,7 @@ bool IsEncodeurStuck(int ID)
   return ret;
 }
 
-bool IsObstacle(int distance_bas, int distance_haut)
-{
+bool IsObstacle(int distance_bas, int distance_haut){
   bool ret = false;
   if(distance_bas <= 250 && distance_haut <= 250)
   {
@@ -706,8 +692,7 @@ bool IsObstacle(int distance_bas, int distance_haut)
   return ret;
 }
 
-bool IsBalle(int distance_bas, int distance_haut)
-{
+bool IsBalle(int distance_bas, int distance_haut){
   bool ret = false;
   Serial.print("Distance_bas = "); Serial.println(distance_bas);
   if(distance_bas < 150)
@@ -806,8 +791,102 @@ void goaler(){
   MOVE_vAvancer(0.3, 350);
   MOVE_vAvancer(-0.3,-350);
 }
-  
 
+void pirUS(){
+	delay(100);
+	bool lastPos = LEFT; // derniere position de l'objet a partir de la camera
+	if (pixy.ccc.getBlocks(true, 1) > 0)
+	{
+		float ratio;
+
+		int blockPos = 0;
+		for (int i = 0; i < pixy.ccc.numBlocks; i++)
+		{
+			if (pixy.ccc.blocks[i].m_signature == 0)
+				blockPos = i;
+		}
+
+		if (pixy.ccc.blocks[blockPos].m_height < 60)
+		{
+			g_leftSpeed = g_rightSpeed = 0.15;
+		}
+
+		if (pixy.ccc.blocks[blockPos].m_height > 80)
+		{
+			g_leftSpeed = g_rightSpeed = -0.15;
+		}
+
+		ratio = ((float)pixy.ccc.blocks[blockPos].m_x) / ((float)(pixy.frameWidth / 2.0));
+		Serial.print("ratio non mod : ");
+		Serial.println(ratio);
+		Serial.println();
+		if (pixy.ccc.blocks[blockPos].m_height <= 80 && pixy.ccc.blocks[blockPos].m_height >= 60)
+		{
+			if (ratio >= 1.1)
+			{
+				g_leftSpeed = 0.1;
+				g_rightSpeed = -g_leftSpeed;
+			}
+			if (ratio <= 0.9)
+			{
+				g_leftSpeed = -0.1;
+				g_rightSpeed = 0.1;
+			}
+			if (ratio < 1.1 && ratio > 0.9)
+				g_leftSpeed = g_rightSpeed = 0.0;
+		}
+
+		if (ratio > 1.0)
+			lastPos = RIGHT;
+		else
+			lastPos = LEFT;
+
+
+		if ((ratio > 1.1 || ratio < 0.9) && (g_leftSpeed > 0.0 && g_rightSpeed > 0.0))
+		{
+			float ratioDivider = 2.0;
+			ratio /= ratioDivider;
+			ratio += 0.5;
+			g_leftSpeed *= ratio;
+		}
+		Serial.print("ratio mod : ");
+		Serial.println(ratio);
+		Serial.println();
+		Serial.println();
+
+		
+	}
+	else
+	{
+		if (lastPos == LEFT)
+		{
+			g_leftSpeed = -0.13;
+			g_rightSpeed = 0.13;
+		}
+		else
+		{
+			g_leftSpeed = 0.13;
+			g_rightSpeed = - 0.13;
+		}
+	}
+
+	MOTOR_SetSpeed(LEFT, g_leftSpeed);
+	MOTOR_SetSpeed(RIGHT, g_rightSpeed);
+}  
+
+void setup(){
+  BoardInit();
+  //Ne pas changer la valeur puisque le capteur de couleur communique en 115200 Bauds.
+  Serial.begin(9600);
+  //robot = setup_ISL29125();
+  setup_Moteurs();
+  setup_Sorties();
+  setup_timers();
+  MOTOR_SetSpeed(RIGHT,0);
+  MOTOR_SetSpeed(LEFT,0);
+  
+  delay(5000);
+}
 
 void loop() {
 //SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
