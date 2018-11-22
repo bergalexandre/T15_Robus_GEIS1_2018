@@ -34,16 +34,11 @@ Date: 01 oct 2018
 #define GOALER 1
 Pixy2 pixy;
 
-//enum
-
 typedef enum
 {
-  avance,
-  stop,
-  pivote,
-  kick_ball,
-  recule
-} state_t;
+  suiveur_ligne,
+  detecteur_blocks
+} camera_mode_t;
 
 /*******************************************************************************
  * Prototypes locaux
@@ -67,7 +62,6 @@ int robot;
 int deltaTime = millis();
 int voltage = 0;
 bool siffletFirstTime = true;
-state_t robot_state = avance;
 
 /*******************************************************************************
  * fonctions
@@ -558,58 +552,6 @@ void resetSifflet()
   sifflet = 0;
 }
 
-void checkForSifflet(){
-
-if(analogRead(SIFFLET_PIN) > 410)
-  {
-    sifflet++;
-    Serial.println(sifflet);
-  }
-  if(sifflet == 1)
-  {
-    SOFT_TIMER_Enable(TIMER_ID_SIFFLET); 
-  }
-  if(sifflet >= 27)
-  {
-    MOTOR_SetSpeed(0,0.) ;
-    MOTOR_SetSpeed(1,0.);
-    sifflet = 0;
-    delay(10000);
-  }
-}
-
-/******************* Fonctions pour tester les capteurs ***************************/
-
-void test_CapteurIR()
-{
-  int32_t distance[2];
-  distance[0] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_BAS);
-  distance[1] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_HAUT);
-  Serial.print("Capteur haut(mm)  = "); Serial.println(distance[1]);
-  Serial.print("Capteur bas(mm) = "); Serial.println(distance[0]);
-}
-
-void test_CapteurCouleur()
-{
-  unsigned int rouge = RGB_sensor.readRed();
-  unsigned int vert = RGB_sensor.readGreen();
-  unsigned int bleu = RGB_sensor.readBlue();
-  Serial.print("Couleur Rouge = "); Serial.println(rouge, HEX); 
-  Serial.print("Couleur Verte = "); Serial.println(vert, HEX); 
-  Serial.print("Couleur Bleu = "); Serial.println(bleu, HEX);
-}
-
-void test_CapteurLigne()
-{
-  //Vérifie les lignes
-  Serial.print("Detecteur de ligne A13 = "); 
-  Serial.println(CAPTEUR_detecteurDeLigne(CAPTEUR_SUIVEUR_LIGNE_GAUCHE) == true?"TRUE": "FALSE"); 
-  Serial.print("Detecteur de ligne A14 = "); 
-  Serial.println(CAPTEUR_detecteurDeLigne(CAPTEUR_SUIVEUR_LIGNE_MILIEU) == true?"TRUE": "FALSE"); 
-  Serial.print("Detecteur de ligne A15 = "); 
-  Serial.println(CAPTEUR_detecteurDeLigne(CAPTEUR_SUIVEUR_LIGNE_DROIT) == true?"TRUE": "FALSE"); 
-}
-
 /***************** MAIN ****************/
 
 void setup_timers()
@@ -617,12 +559,6 @@ void setup_timers()
   SOFT_TIMER_SetDelay(TIMER_ID_KICK, 300);
   SOFT_TIMER_SetRepetition(TIMER_ID_KICK, 1);
   SOFT_TIMER_SetCallback(TIMER_ID_KICK, &Kick_return);
-  SOFT_TIMER_SetDelay(TIMER_ID_STATE, 1500);
-  SOFT_TIMER_SetRepetition(TIMER_ID_STATE, 1);
-  SOFT_TIMER_SetCallback(TIMER_ID_STATE, &changeMode);
-  SOFT_TIMER_SetDelay(TIMER_ID_SIFFLET, 3500);
-  SOFT_TIMER_SetRepetition(TIMER_ID_SIFFLET, 1);
-  SOFT_TIMER_SetCallback(TIMER_ID_SIFFLET, &resetSifflet);
   SOFT_TIMER_SetDelay(TIMER_ID_DROP, 200);
   SOFT_TIMER_SetCallback(TIMER_ID_DROP, &saveBatteriesByDisablingServos);
 }
@@ -663,146 +599,6 @@ void setup_Moteurs(){
   MOTOR_SetSpeed(RIGHT, 0.0);
 
 }
-
-bool IsEncodeurStuck(int ID){
-  bool ret = false;
-  static unsigned long startTime[2] = {millis(), millis()};
-  unsigned long currentTime = millis();
-  static int32_t previousEncoder[2];
-  memset(previousEncoder, 0, sizeof(previousEncoder));
-  int32_t currentEncoder = ENCODER_Read(ID);
-
-  if(previousEncoder[ID] > currentEncoder)
-  {
-    previousEncoder[ID] = 0;
-  }
-  else
-  {
-    if(previousEncoder[ID] <= (currentEncoder+100))
-    {
-      if(currentTime-startTime[ID] > 3000)
-      {
-        ret = true;
-        startTime[ID] = millis();
-      }
-    }
-    else
-    {
-      startTime[ID] = millis();
-    }
-  }
-  previousEncoder[ID] = currentEncoder;
-  return ret;
-}
-
-bool IsObstacle(int distance_bas, int distance_haut){
-  bool ret = false;
-  if(distance_bas <= 250 && distance_haut <= 250)
-  {
-    ret = true;
-  }
-  return ret;
-}
-
-bool IsBalle(int distance_bas, int distance_haut){
-  bool ret = false;
-  Serial.print("Distance_bas = "); Serial.println(distance_bas);
-  if(distance_bas < 150)
-  {
-    ret = true;
-  }
-  return ret;
-}
-
-void changeMode(){
-  robot_state = avance;
-  ENCODER_Reset(RIGHT);
-  ENCODER_Reset(LEFT);
-}
-
-void attaquant(){
-  int distance[2] = {0};
-  static state_t previousState = avance;
-  static int counter = 0;
-  distance[0] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_BAS);
-  distance[1] = CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_HAUT);
-  //checkForSifflet();
-  checkForSifflet();
-
-  if(robot_state == avance && robot_state != recule)
-  {
-    Serial.println(counter);
-    if(counter > 100)
-    {
-      robot_state == recule;
-      counter = 0;
-    }
-    //Si un mur ou robot
-    else if(IsObstacle(distance[0], distance[1]))
-    {
-      //Coupe les moteurs
-      robot_state = stop;
-      Serial.print("Obstacle!\n");
-    }
-    //Si une balle
-    else if(IsBalle(distance[0], distance[1]))
-    {
-      robot_state = kick_ball;
-      Serial.print("Balle!\n");
-    }
-    //Mode par défaut
-    else
-    {
-      robot_state = avance;
-     // Serial.print("Avance!\n");
-    }
-  }
-
-  switch(robot_state)
-  {
-    case avance:
-      MOTOR_SetSpeed(LEFT, 0.7);
-      MOTOR_SetSpeed(RIGHT, 0.7+fSpeedAdjustment());
-      counter++;
-      break;
-    case stop:
-      MOTOR_SetSpeed(LEFT, 0.0);
-      MOTOR_SetSpeed(RIGHT, 0.0);
-      break;
-    case kick_ball:
-      Ball_kick();
-      robot_state = avance;
-      break;
-    case pivote:
-      if(previousState != robot_state)
-      {
-        SOFT_TIMER_Enable(TIMER_ID_STATE);
-      }
-      MOTOR_SetSpeed(LEFT, 0.3);
-      MOTOR_SetSpeed(RIGHT, -0.3);
-      break;
-    case recule:
-      if(previousState != robot_state)
-      {
-        SOFT_TIMER_Enable(TIMER_ID_STATE);
-      }
-      MOTOR_SetSpeed(LEFT, -0.4);
-      MOTOR_SetSpeed(RIGHT, -0.7);
-      break;
-  }
-  delay(20);
-  previousState = robot_state;
-  if(robot_state == stop)
-  {
-    robot_state = pivote;
-  }
-}
-
-void goaler(){
-  MOVE_vAvancer(0.3, 350);
-  MOVE_vAvancer(-0.3,-350);
-}
-
 
 void pirUS(){
 	delay(100);
@@ -886,6 +682,35 @@ void pirUS(){
 	MOTOR_SetSpeed(RIGHT, g_rightSpeed);
 }  
 
+void changeMode(camera_mode_t mode)
+{
+	switch(mode)
+	{
+	case suiveur_ligne:
+		pixy.changeProg("line");
+		break;
+	case detecteur_blocks:
+		pixy.changeProg("color_connected_components");
+		break;
+	default:
+		pixy.changeProg("color_connected_components");
+		break;
+   }
+}
+
+void mode_ligne()
+{
+	pixy.line.getAllFeatures();
+	char buf[128] = {0};
+	// print all vectors
+	for (int i=0; i<pixy.line.numVectors; i++)
+	{
+		sprintf(buf, "line %d: ", i);
+		Serial.print(buf);
+		pixy.line.vectors[i].print();
+	}
+}
+
 void setup(){
   BoardInit();
   Serial.begin(9600);
@@ -894,11 +719,11 @@ void setup(){
   setup_timers();
   MOTOR_SetSpeed(RIGHT,0);
   MOTOR_SetSpeed(LEFT,0);
-  
-  delay(5000);
+  changeMode(suiveur_ligne);
 }
 
 void loop() {
+	/*
 SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
 static int i=0;
 if (i==5){
@@ -908,7 +733,10 @@ if (i==15){
   ballDrop();
   i=0;
 }
-i++;
-delay(300);
+i++;*/
+delay(1000);
+	//SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
+	//Serial.println(pixy.ccc.getBlocks());
+mode_ligne();
 }
 
