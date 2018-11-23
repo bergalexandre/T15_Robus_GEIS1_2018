@@ -32,6 +32,11 @@ Date: 01 oct 2018
 #define TIMER_ID_DROP 5
 #define KICKER 0
 #define GOALER 1
+
+// 0,0 en haut à gauche
+#define LINE_HEIGHT 51
+#define LINE_WIDTH 78
+
 Pixy2 pixy;
 
 typedef enum
@@ -39,6 +44,13 @@ typedef enum
   suiveur_ligne,
   detecteur_blocks
 } camera_mode_t;
+
+typedef enum
+{
+   ligne_gauche,
+   ligne_centre,
+   ligne_droite
+} position_ligne_t;
 
 /*******************************************************************************
  * Prototypes locaux
@@ -692,27 +704,170 @@ void changeMode(camera_mode_t mode)
 	{
 	case suiveur_ligne:
 		pixy.changeProg("line");
+      Serial.print("Mode suiveur de ligne\n");
 		break;
 	case detecteur_blocks:
 		pixy.changeProg("color_connected_components");
+      Serial.print("Mode block\n");
 		break;
 	default:
 		pixy.changeProg("color_connected_components");
+      Serial.print("Mode block\n");
 		break;
    }
+}
+
+float ValueFromPercent(float value, int percent)
+{
+   return ((float)value*percent)/100.0;
+}
+
+/**
+ * @brief Ajuste la roue gauche pour réaligner la ligne au centre du robot.
+ * 
+ * @param ligne 
+ * @return float 
+ */
+float GetRecenterFactor(Vector ligne)
+{
+   //Ajuste la vitesse en fonction du décalage du X0 par rapport au centre.
+   int diffVecteur = ligne.m_x0 - ligne.m_x1;
+   const int vitesseMax = 0.3;
+   float ajustement = 0.0;
+   //Doit allez vers la gauche si positif
+   if(diffVecteur > 0)
+   {
+      ajustement = ((float)diffVecteur/(LINE_WIDTH/2))*vitesseMax; 
+   }
+   //Sinon vers la droite
+   else if(diffVecteur < 0)
+   {
+      ajustement = ((float)diffVecteur/(LINE_WIDTH/2))*vitesseMax; 
+      ajustement = -ajustement;
+   }
+
+   return ajustement;
+}
+
+/**
+ * @brief Ajuste la vitesse de la roue gauche en fonction de 
+ * 
+ * @param ligne Le vecteur Pixy qui doit être analysé
+ * @return int 
+ */
+float GetVectorFactor(Vector ligne)
+{
+   int diffVecteur = ligne.m_x0 - ligne.m_x1;
+   const float vitesseMax = 0.3;
+   float ajustement = 0.0;
+   //Doit allez vers la gauche si positif
+   if(diffVecteur > 0)
+   {
+      ajustement = ((float)diffVecteur/ligne.m_x0)*vitesseMax; 
+   }
+   //Sinon vers la droite
+   else if(diffVecteur < 0)
+   {
+      ajustement = ((float)diffVecteur/ligne.m_x0)*vitesseMax; 
+      ajustement = -ajustement;
+   }
+   else
+   {
+      ajustement = 0.0;
+   }
+   if(ajustement > vitesseMax)
+   {
+      ajustement = vitesseMax;
+   }
+   else if(ajustement < -vitesseMax)
+   {
+      ajustement = -vitesseMax;
+   }
+
+   Serial.print("Suiveur de ligne: ajustement = ");
+   Serial.println(ajustement);
+   return ajustement;
+
+}
+
+position_ligne_t IsRobotCenter(int value)
+{
+   //Trop à gauche
+   position_ligne_t position = ligne_centre;
+   if(value < ValueFromPercent(LINE_WIDTH, 50) && value < ValueFromPercent(LINE_WIDTH, 30))
+   {
+      Serial.print("Robot trop à gauche\n");
+      position = ligne_gauche;
+   }
+   else if(value > ValueFromPercent(LINE_WIDTH, 50) && value > ValueFromPercent(LINE_WIDTH, 70))
+   {
+      Serial.print("Robot trop à droite\n");
+      position = ligne_droite;
+   }
+   else
+   {
+      Serial.print("Robot est au centre\n");
+      position = ligne_centre;
+   }
+
+   return position;
 }
 
 void mode_ligne()
 {
 	pixy.line.getAllFeatures();
 	char buf[128] = {0};
+   float AdjustSpeed = 0.0;
 	// print all vectors
-	for (int i=0; i<pixy.line.numVectors; i++)
-	{
-		sprintf(buf, "line %d: ", i);
+   if(pixy.line.numVectors > 1)
+   {
+      sprintf(buf, "line 1: ");
 		Serial.print(buf);
-		pixy.line.vectors[i].print();
-	}
+		pixy.line.vectors[0].print();
+      //Verify que le vecteur est valide
+      if(pixy.line.vectors[0].m_y0 > ValueFromPercent(LINE_HEIGHT, 90))
+      {
+         //Vérifie qu'on est plus au moins au centre
+         position_ligne_t position_ligne = IsRobotCenter(pixy.line.vectors[0].m_x0);
+         if(position_ligne == ligne_centre)
+         {
+            //Ajuste la vitesse au besoin pour suivre le vecteur
+            AdjustSpeed = GetVectorFactor(pixy.line.vectors[0]);
+         }
+         else
+         {
+            //Revenir au centre.
+         }
+      }
+      else
+      {
+         //Robot doit revenir vers la ligne
+      }
+   }
+   else
+   {
+      //Le robot doit faire un 30 degré
+      Serial.print("Pas de vecteur\n");
+   }
+
+   delay(500);
+}
+
+void demo_claw()
+{
+   static int i=0;
+   if (i==5){
+   ballDrop();
+   }
+   if (i==15){
+   ballGrab(85);
+   }
+   if (i==20){
+   ballDrop();
+   i=0;
+   }
+
+   i++;
 }
 
 void setup(){
@@ -728,23 +883,8 @@ void setup(){
 
 void loop() {
 
-SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
-static int i=0;
-if (i==5){
-  ballDrop();
-  }
-if (i==15){
-  ballGrab(85);
-}
-if (i==20){
-  ballDrop();
-  i=0;
-}
-
-i++;
-delay(500);
-	//SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
-	//Serial.println(pixy.ccc.getBlocks());
-//mode_ligne();
+   SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
+   mode_ligne();
+   delay(500);
 }
 
