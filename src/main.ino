@@ -296,7 +296,6 @@ void MOVE_vAvancer(float fVitesse, int32_t i32Distance_mm,unsigned int accelerat
   if(i32Distance_mm  > 0){
   while(MOVE_getDistanceMM(LEFT) < i32Distance_mm)
   {
-    checkForSifflet();
     SerialPrintf("Distance fait = %i mm\n", MOVE_getDistanceMM(LEFT));
     g_rightSpeed = fVitesse + fSpeedAdjustment();
     MOTOR_SetSpeed(RIGHT, g_rightSpeed);
@@ -306,7 +305,6 @@ void MOVE_vAvancer(float fVitesse, int32_t i32Distance_mm,unsigned int accelerat
   else{
     while(MOVE_getDistanceMM(LEFT) > i32Distance_mm)
   {
-    checkForSifflet();
     SerialPrintf("Distance fait = %i mm\n", MOVE_getDistanceMM(LEFT));
     g_rightSpeed = fVitesse - fSpeedAdjustment();
     MOTOR_SetSpeed(RIGHT, g_rightSpeed);
@@ -464,9 +462,9 @@ void Kick_return(){
   // enlever l'ignore dans le kick
 }
 
-void ballGrab(){
+void ballGrab(int angle){
   SERVO_Enable(0);
-  SERVO_SetAngle(0, 80);
+  SERVO_SetAngle(0, angle);
   SOFT_TIMER_Enable(TIMER_ID_DROP);
   Serial.print("Picked up golf ball.\n");
   currently_carrying = 1;
@@ -478,6 +476,12 @@ void ballDrop(){
   SOFT_TIMER_Enable(TIMER_ID_DROP);
   Serial.print("Dropped the ball.\n");
   currently_carrying = 0;
+}
+
+void servoClose(){
+  SERVO_Enable(0);
+  SERVO_SetAngle(0,100);
+  Serial.print("Closing the claw");
 }
 
 void saveBatteriesByDisablingServos(){
@@ -723,20 +727,24 @@ void setup(){
 }
 
 void loop() {
-	/*
+
 SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
 static int i=0;
 if (i==5){
-  ballGrab();
+  ballDrop();
   }
 if (i==15){
+  ballGrab(85);
+}
+if (i==20){
   ballDrop();
   i=0;
 }
-i++;*/
-delay(1000);
+
+i++;
+delay(500);
 	//SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
 	//Serial.println(pixy.ccc.getBlocks());
-mode_ligne();
+//mode_ligne();
 }
 
