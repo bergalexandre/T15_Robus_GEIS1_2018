@@ -617,48 +617,53 @@ void setup_Moteurs(){
 }
 
 void pirUS(){
-	delay(100);
 	bool lastPos = LEFT; // derniere position de l'objet a partir de la camera
 	if (pixy.ccc.getBlocks(true, 1) > 0) //rentre s'il y a un objet de détecté
 	{
 		float ratio;
 		int blockPos = 0;
-
-      // trouve la position de la balle dans l'array
-		for (int i = 0; i < pixy.ccc.numBlocks; i++) 
+    Serial.print("Balle trouvee.\n");
+		for (int i = 0; i < pixy.ccc.numBlocks; i++) // trouve la position de la balle dans l'array
 		{
 			if (pixy.ccc.blocks[i].m_signature == 0)
 				blockPos = i;
 		}
-      // si la balle est trop loin avance
-		if (pixy.ccc.blocks[blockPos].m_height < 60) 
+
+		if (pixy.ccc.blocks[blockPos].m_y < 180) // si la balle est trop loin avance
 		{
-			g_leftSpeed = g_rightSpeed = 0.15;
-		}
-      // si trop proche recule
-		if (pixy.ccc.blocks[blockPos].m_height > 80)
-		{
-			g_leftSpeed = g_rightSpeed = -0.15;
+      Serial.print("Balle trop loin.\n");
+			g_rightSpeed = 0.15;
+      g_leftSpeed = g_rightSpeed;
 		}
 
-      //ratio de la postion en x de la ball va de 0 à 2 0 étant a gauche et 2 a droite
-		ratio = ((float)pixy.ccc.blocks[blockPos].m_x) / ((float)(pixy.frameWidth / 2.0));
-	
-      // si la balle est dans le bon threshold de distance, recentre la balle
-		if (pixy.ccc.blocks[blockPos].m_height <= 80 && pixy.ccc.blocks[blockPos].m_height >= 60) 
+		if (pixy.ccc.blocks[blockPos].m_y > 190)// si trop proche recule
 		{
-			if (ratio >= 1.1)
+      Serial.print("Balle trop proche.\n");
+			g_rightSpeed = -0.15;
+      g_leftSpeed = g_rightSpeed;
+		}
+
+		ratio = ((float)pixy.ccc.blocks[blockPos].m_x) / ((float)(pixy.frameWidth / 2.0)); //ratio de la postion en x de la ball va de 0 à 2 0 étant a gauche et 2 a droite
+	
+		if (pixy.ccc.blocks[blockPos].m_y <= 190 && pixy.ccc.blocks[blockPos].m_y >= 180) // si la balle est dans le bon threshold de distance, recentre la balle
+		{
+      Serial.print("On recentre la balle.\n");
+			if (ratio >= 1.2)
 			{
+        Serial.print("Balle trop a droite.\n");
 				g_leftSpeed = 0.1;
-				g_rightSpeed = -g_leftSpeed;
+				g_rightSpeed = 0;
 			}
-			if (ratio <= 0.9)
+			else if (ratio <= 0.8)
 			{
-				g_leftSpeed = -0.1;
-				g_rightSpeed = 0.1;
+        Serial.print("Balle trop a gauche.\n");
+				g_leftSpeed = 0.1;
+				g_rightSpeed = 0;
 			}
-			if (ratio < 1.1 && ratio > 0.9)
-				g_leftSpeed = g_rightSpeed = 0.0;
+			else if (ratio < 1.2 && ratio > 0.8){
+				Serial.print("Balle centree.\n");
+        g_leftSpeed = g_rightSpeed = 0.0;
+      }
 		}
 
 		if (ratio > 1.0)
@@ -666,14 +671,15 @@ void pirUS(){
 		else
 			lastPos = LEFT;
 
-      //lorsque le robot avance vers la balle, ceci s'assure que la balle est toujours au centre
-		if ((ratio > 1.1 || ratio < 0.9) && (g_leftSpeed > 0.0 && g_rightSpeed > 0.0))
-		{
-			float ratioDivider = 2.0;
-			ratio /= ratioDivider;
-			ratio += 0.5;
-			g_leftSpeed *= ratio;
-		}
+
+		// if ((ratio > 1.1 || ratio < 0.9) && (g_leftSpeed > 0.0 && g_rightSpeed > 0.0)) //lorsque le robot avance vers la balle, ceci s'assure que la balle est toujours au centre
+		// {
+    //   Serial.print("On est rendu dans le code que je comprends pas.\n");
+		// 	float ratioDivider = 2.0;
+		// 	ratio /= ratioDivider;
+		// 	ratio += 0.5;
+		// 	//g_leftSpeed *= ratio;
+		// }
 		
 		
 	}
@@ -876,13 +882,15 @@ void setup(){
   MOTOR_SetSpeed(RIGHT,0);
   MOTOR_SetSpeed(LEFT,0);
   changeMode(detecteur_blocks);
+  ballDrop();
+  delay(2000);
 }
 
 void loop() {
-
-   SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
-   //demo_claw();
-   //CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_BAS);
-   pirUS();
+  
+  SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
+  //demo_claw();
+  //CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_BAS);
+  pirUS();
 }
 
