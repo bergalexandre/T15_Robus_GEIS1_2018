@@ -49,6 +49,7 @@ typedef enum
 {
    ligne_gauche,
    ligne_centre,
+   ligne_tres_au_centre,
    ligne_droite
 } position_ligne_t;
 
@@ -681,7 +682,7 @@ void pirUS(){
 		// 	//g_leftSpeed *= ratio;
 		// }
 		
-		
+		pixy.ccc.blocks[1].print();
 	}
 	else
 	{
@@ -708,10 +709,12 @@ void changeMode(camera_mode_t mode)
 	case suiveur_ligne:
 		pixy.changeProg("line");
       Serial.print("Mode suiveur de ligne\n");
+      pixy.setCameraBrightness(70);
 		break;
 	case detecteur_blocks:
 		pixy.changeProg("color_connected_components");
       Serial.print("Mode block\n");
+      pixy.setCameraBrightness(35);
 		break;
 	default:
 		pixy.changeProg("color_connected_components");
@@ -797,12 +800,12 @@ position_ligne_t IsRobotCenter(int value)
 {
    //Trop à gauche
    position_ligne_t position = ligne_centre;
-   if(value < ValueFromPercent(LINE_WIDTH, 50) && value < ValueFromPercent(LINE_WIDTH, 30))
+   if(value < ValueFromPercent(LINE_WIDTH, 50) && value < ValueFromPercent(LINE_WIDTH, 20))
    {
       Serial.print("Robot trop à gauche\n");
       position = ligne_gauche;
    }
-   else if(value > ValueFromPercent(LINE_WIDTH, 50) && value > ValueFromPercent(LINE_WIDTH, 70))
+   else if(value > ValueFromPercent(LINE_WIDTH, 50) && value > ValueFromPercent(LINE_WIDTH, 80))
    {
       Serial.print("Robot trop à droite\n");
       position = ligne_droite;
@@ -816,26 +819,83 @@ position_ligne_t IsRobotCenter(int value)
    return position;
 }
 
-void mode_ligne()
+bool pixyGetLigne(Vector* ligne_retour)
 {
-	pixy.line.getAllFeatures();
+   bool bRet = false;
+   pixy.line.getAllFeatures();
 	char buf[128] = {0};
-   float AdjustSpeed = 0.0;
 	// print all vectors
    if(pixy.line.numVectors > 1)
    {
       sprintf(buf, "line 1: ");
 		Serial.print(buf);
 		pixy.line.vectors[0].print();
+      *ligne_retour = pixy.line.vectors[0];
+      bRet = true;
+   }
+   return bRet;
+}
+
+
+/**
+ * @brief La fonction va remettre le robot au centre, bloquante juste à temps 
+ * que le robot soit bien positionné car on a besoin de précision. 
+ * 
+ */
+void recenter_robot()
+{
+   Vector ligne;
+   int lignePerdu = 10;
+   bool robotAuCentre = false;
+   //Essaie de se replacer tout les 50 ms vers le centre
+   while(lignePerdu > 0 && robotAuCentre == false)
+   {/* 
+      if(pixyGetLigne(&ligne) == true)
+      {
+         position_ligne_t position = IsRobotCenter(ligne);
+         //Robt doit allez vers la gauche
+         if(position == ligne_gauche)
+         {
+            g_leftSpeed = 0.2;
+            g_rightSpeed = 0.3;
+         }
+         //Robot doit allez vers la droite
+         else if(position == ligne_droite)
+         {
+            g_leftSpeed = 0.3;
+            g_rightSpeed = 0.2;
+         }
+         //Le robot doit aligner la ligne à la vertical
+         else
+         {
+            
+         } 
+      }
+      else
+      {
+         lignePerdu--;
+      }
+      delay(50);
+      */
+   }
+}
+
+void mode_ligne()
+{
+   Vector ligne;
+   float AdjustSpeed = 0.0;
+	// print all vectors
+   if(pixyGetLigne(&ligne) == true)
+   {
       //Verify que le vecteur est valide
-      if(pixy.line.vectors[0].m_y0 > ValueFromPercent(LINE_HEIGHT, 90))
+      if(ligne.m_y0 > ValueFromPercent(LINE_HEIGHT, 90))
       {
          //Vérifie qu'on est plus au moins au centre
-         position_ligne_t position_ligne = IsRobotCenter(pixy.line.vectors[0].m_x0);
-         if(position_ligne == ligne_centre)
+         position_ligne_t position_ligne = IsRobotCenter(ligne.m_x0);
+         if(position_ligne == ligne_centre || position_ligne == ligne_tres_au_centre)
          {
             //Ajuste la vitesse au besoin pour suivre le vecteur
-            AdjustSpeed = GetVectorFactor(pixy.line.vectors[0]);
+            AdjustSpeed = GetVectorFactor(ligne);
          }
          else
          {
@@ -881,6 +941,13 @@ void setup(){
   setup_timers();
   MOTOR_SetSpeed(RIGHT,0);
   MOTOR_SetSpeed(LEFT,0);
+  //Attend que le pixy soit ready:
+  int pixy_answer;
+  do
+  {
+      pixy_answer = pixy.getVersion();
+      delay(100);
+  }while(pixy_answer == PIXY_RESULT_BUSY || pixy_answer == PIXY_RESULT_ERROR);
   changeMode(detecteur_blocks);
   ballDrop();
   delay(2000);
