@@ -878,13 +878,14 @@ void setup(){
   setup_timers();
   MOTOR_SetSpeed(RIGHT,0);
   MOTOR_SetSpeed(LEFT,0);
-  changeMode(suiveur_ligne);
+  changeMode(detecteur_blocks);
 }
 
 void loop() {
 
    SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
-   mode_ligne();
-   delay(500);
+   //demo_claw();
+   //CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_BAS);
+   pirUS();
 }
 
