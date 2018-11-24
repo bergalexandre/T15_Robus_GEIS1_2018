@@ -619,32 +619,33 @@ void setup_Moteurs(){
 void pirUS(){
 	delay(100);
 	bool lastPos = LEFT; // derniere position de l'objet a partir de la camera
-	if (pixy.ccc.getBlocks(true, 1) > 0)
+	if (pixy.ccc.getBlocks(true, 1) > 0) //rentre s'il y a un objet de détecté
 	{
 		float ratio;
-
 		int blockPos = 0;
-		for (int i = 0; i < pixy.ccc.numBlocks; i++)
+
+      // trouve la position de la balle dans l'array
+		for (int i = 0; i < pixy.ccc.numBlocks; i++) 
 		{
 			if (pixy.ccc.blocks[i].m_signature == 0)
 				blockPos = i;
 		}
-
-		if (pixy.ccc.blocks[blockPos].m_height < 60)
+      // si la balle est trop loin avance
+		if (pixy.ccc.blocks[blockPos].m_height < 60) 
 		{
 			g_leftSpeed = g_rightSpeed = 0.15;
 		}
-
+      // si trop proche recule
 		if (pixy.ccc.blocks[blockPos].m_height > 80)
 		{
 			g_leftSpeed = g_rightSpeed = -0.15;
 		}
 
+      //ratio de la postion en x de la ball va de 0 à 2 0 étant a gauche et 2 a droite
 		ratio = ((float)pixy.ccc.blocks[blockPos].m_x) / ((float)(pixy.frameWidth / 2.0));
-		Serial.print("ratio non mod : ");
-		Serial.println(ratio);
-		Serial.println();
-		if (pixy.ccc.blocks[blockPos].m_height <= 80 && pixy.ccc.blocks[blockPos].m_height >= 60)
+	
+      // si la balle est dans le bon threshold de distance, recentre la balle
+		if (pixy.ccc.blocks[blockPos].m_height <= 80 && pixy.ccc.blocks[blockPos].m_height >= 60) 
 		{
 			if (ratio >= 1.1)
 			{
@@ -665,7 +666,7 @@ void pirUS(){
 		else
 			lastPos = LEFT;
 
-
+      //lorsque le robot avance vers la balle, ceci s'assure que la balle est toujours au centre
 		if ((ratio > 1.1 || ratio < 0.9) && (g_leftSpeed > 0.0 && g_rightSpeed > 0.0))
 		{
 			float ratioDivider = 2.0;
@@ -673,11 +674,7 @@ void pirUS(){
 			ratio += 0.5;
 			g_leftSpeed *= ratio;
 		}
-		Serial.print("ratio mod : ");
-		Serial.println(ratio);
-		Serial.println();
-		Serial.println();
-
+		
 		
 	}
 	else
@@ -696,7 +693,7 @@ void pirUS(){
 
 	MOTOR_SetSpeed(LEFT, g_leftSpeed);
 	MOTOR_SetSpeed(RIGHT, g_rightSpeed);
-}  
+}
 
 void changeMode(camera_mode_t mode)
 {
