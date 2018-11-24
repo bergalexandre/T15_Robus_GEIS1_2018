@@ -682,7 +682,7 @@ void pirUS(){
 		// 	//g_leftSpeed *= ratio;
 		// }
 		
-		pixy.ccc.blocks[1].print();
+	
 	}
 	else
 	{
@@ -701,6 +701,21 @@ void pirUS(){
 	MOTOR_SetSpeed(LEFT, g_leftSpeed);
 	MOTOR_SetSpeed(RIGHT, g_rightSpeed);
 }
+
+void getBall(){
+  ENCODER_Reset(0);
+  ENCODER_Reset(1);
+  while(CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_BAS)>75){
+    MOTOR_SetSpeed(LEFT,0.15);
+    MOTOR_SetSpeed(RIGHT,0.15);
+  }
+  Serial.print("La balle est icitte meyn!\n");
+  MOTOR_SetSpeed(LEFT,0);
+  MOTOR_SetSpeed(RIGHT,0);
+  delay(50);
+  ballGrab(90);
+}
+
 
 void changeMode(camera_mode_t mode)
 {
@@ -958,6 +973,11 @@ void loop() {
   SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
   //demo_claw();
   //CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_BAS);
-  pirUS();
+  //pirUS();
+  if (currently_carrying==0){
+    getBall();
+  } 
+  delay(1000);
+  MOTOR_SetSpeed(RIGHT,0.3);
 }
 
