@@ -30,12 +30,13 @@ Date: 01 oct 2018
 #define TIMER_ID_STATE 3
 #define TIMER_ID_SIFFLET 4
 #define TIMER_ID_DROP 5
-#define KICKER 0
-#define GOALER 1
 
+
+//Define pour suiveur de ligne.
 // 0,0 en haut à gauche
 #define LINE_HEIGHT 51
 #define LINE_WIDTH 78
+#define NB_VECTOR_TO_COMPARE 10
 
 Pixy2 pixy;
 
@@ -592,23 +593,6 @@ void setup_Sorties()
   pinMode(CAPTEUR_SUIVEUR_LIGNE_GAUCHE, INPUT);
 }
 
-int setup_ISL29125()
-{
-  //Initialise le capteur de couleur ISL29125.
-  int defenseur;
-  if (RGB_sensor.init())
-  {
-    Serial.println("Capteur de couleur initialisation: Success\n\r");
-    defenseur = GOALER;
-  }
-  else
-  {
-    Serial.println("Capteur de couleur initialisation: Failure\n\r");
-    defenseur = KICKER;
-  }
-  return defenseur;
-}
-
 void setup_Moteurs(){
   g_leftSpeed = 0;
   g_rightSpeed = 0;
@@ -776,6 +760,7 @@ float GetRecenterFactor(Vector ligne)
  * @param ligne Le vecteur Pixy qui doit être analysé
  * @return int 
  */
+
 float GetVectorFactor(Vector ligne)
 {
    int diffVecteur = ligne.m_x0 - ligne.m_x1;
@@ -834,24 +819,78 @@ position_ligne_t IsRobotCenter(int value)
    return position;
 }
 
+/**
+ * @brief Compare 2 vecteurs
+ * 
+ * @param ligne1 
+ * @param ligne2 
+ * @return true si assez similaire
+ */
+bool bLigneCompare(Vector ligne1, Vector ligne2)
+{
+   bool bRet = false;
+   //les lignes doivent être proche de 8 pixels;
+   int threshold = 8;
+   //int X_threshold = ValueFromPercent(LINE_WIDTH, threshold);
+   //int Y_threshold = ValueFromPercent(LINE_HEIGHT, threshold);
+
+   if(abs(ligne1.m_x0 - ligne2.m_x0) <= threshold &&
+      abs(ligne1.m_x1 - ligne2.m_x1) <= threshold &&
+      abs(ligne1.m_y0 - ligne2.m_y0) <= threshold &&
+      abs(ligne1.m_y1 - ligne2.m_y1) <= threshold) 
+   {
+      bRet = true;
+   }
+   return bRet;
+}
+
 bool pixyGetLigne(Vector* ligne_retour)
 {
    bool bRet = false;
-   int8_t pixy_line = pixy.line.getMainFeatures();
 	char buf[128] = {0};
+   Vector Vecteur[NB_VECTOR_TO_COMPARE] = {0};
 	// print all vectors
-   if(pixy_line != PIXY_RESULT_BUSY && pixy_line != PIXY_RESULT_ERROR)
+   for(int i = 0; i < NB_VECTOR_TO_COMPARE; i++)
    {
-      if(pixy_line & LINE_VECTOR)
+      int8_t pixy_line = pixy.line.getMainFeatures(LINE_VECTOR, true);
+      if(pixy_line != PIXY_RESULT_BUSY && pixy_line != PIXY_RESULT_ERROR)
       {
-         sprintf(buf, "line 1: ");
-         Serial.print(buf);
-         pixy.line.vectors->print();
-         memcpy(ligne_retour, pixy.line.vectors, 0);
+         if(pixy_line & LINE_VECTOR)
+         {
+            //Pour suivre la ligne toujours dans le même sens, on vérifie que m_x0 et m_y0 sont en bas de la caméra
+            if(pixy.line.vectors->m_y0 < pixy.line.vectors->m_y1)
+            {
+               Vector oldVecteur;
+               memcpy(&oldVecteur, pixy.line.vectors, sizeof(Vector));
+               pixy.line.vectors->m_y0 = oldVecteur.m_y1;
+               pixy.line.vectors->m_y1 = oldVecteur.m_y0;
+               pixy.line.vectors->m_x0 = oldVecteur.m_x1;
+               pixy.line.vectors->m_x1 = oldVecteur.m_x0;
+            }
+            sprintf(buf, "ligne %i: ", i);
+            Serial.print(buf);
+            pixy.line.vectors->print();
+            memcpy(&Vecteur[i], pixy.line.vectors, sizeof(Vector));
 
-         bRet = true;
+            bRet = true;
+         }
       }
    }
+
+   //Compare les trois vecteurs, ils doivent avoir les mêmes coordoné à + ou - 20%. Sinon le robot risque de freak out 
+   //si il n'y a pas de ligne.
+   //Pour éviter les faux positif on compare le vecteur trois fois.
+   if(bRet)
+   {
+      bool bVecteurSimilaire = true;
+      for(int i = 1; i < NB_VECTOR_TO_COMPARE; i++)
+      {
+         bVecteurSimilaire &= bLigneCompare(Vecteur[0], Vecteur[i]);
+      }
+      bRet = bVecteurSimilaire;
+      *ligne_retour = Vecteur[0];
+   }
+
    return bRet;
 }
 
@@ -912,8 +951,8 @@ void recenter_robot()
          g_leftSpeed = 0.0;
          g_rightSpeed = 0.0;
       }
-      //MOTOR_SetSpeed(RIGHT, g_rightSpeed);
-      //MOTOR_SetSpeed(LEFT, g_leftSpeed);
+      MOTOR_SetSpeed(RIGHT, g_rightSpeed);
+      MOTOR_SetSpeed(LEFT, g_leftSpeed);
       delay(20);
    }
 }
@@ -939,7 +978,7 @@ void mode_ligne()
          }
          else
          {
-            //recenter_robot();
+            recenter_robot();
          }
       }
       else
