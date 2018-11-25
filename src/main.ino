@@ -779,7 +779,7 @@ float GetRecenterFactor(Vector ligne)
 float GetVectorFactor(Vector ligne)
 {
    int diffVecteur = ligne.m_x0 - ligne.m_x1;
-   const float vitesseMax = 0.3;
+   const float vitesseMax = 0.2;
    float ajustement = 0.0;
    //Doit allez vers la gauche si positif
    if(diffVecteur > 0)
@@ -837,16 +837,20 @@ position_ligne_t IsRobotCenter(int value)
 bool pixyGetLigne(Vector* ligne_retour)
 {
    bool bRet = false;
-   pixy.line.getAllFeatures();
+   int8_t pixy_line = pixy.line.getMainFeatures();
 	char buf[128] = {0};
 	// print all vectors
-   if(pixy.line.numVectors > 1)
+   if(pixy_line != PIXY_RESULT_BUSY && pixy_line != PIXY_RESULT_ERROR)
    {
-      sprintf(buf, "line 1: ");
-		Serial.print(buf);
-		pixy.line.vectors[0].print();
-      *ligne_retour = pixy.line.vectors[0];
-      bRet = true;
+      if(pixy_line & LINE_VECTOR)
+      {
+         sprintf(buf, "line 1: ");
+         Serial.print(buf);
+         pixy.line.vectors->print();
+         memcpy(ligne_retour, pixy.line.vectors, 0);
+
+         bRet = true;
+      }
    }
    return bRet;
 }
@@ -864,10 +868,10 @@ void recenter_robot()
    bool robotAuCentre = false;
    //Essaie de se replacer tout les 50 ms vers le centre
    while(lignePerdu > 0 && robotAuCentre == false)
-   {/* 
+   {
       if(pixyGetLigne(&ligne) == true)
       {
-         position_ligne_t position = IsRobotCenter(ligne);
+         position_ligne_t position = IsRobotCenter(ligne.m_x0);
          //Robt doit allez vers la gauche
          if(position == ligne_gauche)
          {
@@ -880,18 +884,37 @@ void recenter_robot()
             g_leftSpeed = 0.3;
             g_rightSpeed = 0.2;
          }
-         //Le robot doit aligner la ligne à la vertical
-         else
+         else if(position == ligne_tres_au_centre)
          {
-            
-         } 
+            //Tourne légèrement vers la gauche si la valeur est positive.
+            if((ligne.m_x0 - ligne.m_x1) > 2)
+            {
+               g_leftSpeed = 0.0;
+               g_rightSpeed = 0.15;
+            }
+            //Tourne légèrement vers la droite si la valeur est négative.
+            else if((ligne.m_x0 - ligne.m_x1) < -2)
+            {
+               g_leftSpeed = 0.15;
+               g_rightSpeed = 0.0;
+            }
+            else
+            {
+               robotAuCentre = true;
+               g_leftSpeed = 0.0;
+               g_rightSpeed = 0.0;
+            }
+         }
       }
       else
       {
          lignePerdu--;
+         g_leftSpeed = 0.0;
+         g_rightSpeed = 0.0;
       }
-      delay(50);
-      */
+      //MOTOR_SetSpeed(RIGHT, g_rightSpeed);
+      //MOTOR_SetSpeed(LEFT, g_leftSpeed);
+      delay(20);
    }
 }
 
@@ -903,7 +926,7 @@ void mode_ligne()
    if(pixyGetLigne(&ligne) == true)
    {
       //Verify que le vecteur est valide
-      if(ligne.m_y0 > ValueFromPercent(LINE_HEIGHT, 90))
+      if(ligne.m_y0 > ValueFromPercent(LINE_HEIGHT, 70))
       {
          //Vérifie qu'on est plus au moins au centre
          position_ligne_t position_ligne = IsRobotCenter(ligne.m_x0);
@@ -911,23 +934,33 @@ void mode_ligne()
          {
             //Ajuste la vitesse au besoin pour suivre le vecteur
             AdjustSpeed = GetVectorFactor(ligne);
+            g_rightSpeed = 0.2 - AdjustSpeed;
+            g_leftSpeed = 0.2;
          }
          else
          {
-            //Revenir au centre.
+            //recenter_robot();
          }
       }
       else
       {
+         //TODO
          //Robot doit revenir vers la ligne
+         g_leftSpeed = 0.0;
+         g_rightSpeed = 0.0;
+         Serial.print("Le robot est trop loin\n");
       }
    }
    else
    {
+      //TODO
       //Le robot doit faire un 30 degré
+      g_leftSpeed = 0.0;
+      g_rightSpeed = 0.0;
       Serial.print("Pas de vecteur\n");
    }
-
+   MOTOR_SetSpeed(LEFT, g_leftSpeed);
+   MOTOR_SetSpeed(RIGHT, g_rightSpeed);
    delay(500);
 }
 
@@ -963,7 +996,7 @@ void setup(){
       pixy_answer = pixy.getVersion();
       delay(100);
   }while(pixy_answer == PIXY_RESULT_BUSY || pixy_answer == PIXY_RESULT_ERROR);
-  changeMode(detecteur_blocks);
+  changeMode(suiveur_ligne);
   ballDrop();
   delay(2000);
 }
@@ -973,11 +1006,6 @@ void loop() {
   SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
   //demo_claw();
   //CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_BAS);
-  //pirUS();
-  if (currently_carrying==0){
-    getBall();
-  } 
-  delay(1000);
-  MOTOR_SetSpeed(RIGHT,0.3);
+  mode_ligne();
 }
 
