@@ -32,7 +32,7 @@
  * @def Différence permis en nombre de pulse avant de corriger la trajectoire.
  * 
  */
-#define MOVE_WHEEL_MAX_ENCODER_DELTA 100
+#define MOVE_WHEEL_MAX_ENCODER_DELTA 10
 
 
 #define ACTION_TYPE_ACCELERATION 0
@@ -45,7 +45,7 @@
 #define MOVE_INTEGRATIVE_ADJUSTEMENT_FACTOR 0.001
 #define MOVE_DELAY 50
 #define MOVE_WAIT 20
-#define MOVE_MAX_SPEED 0.7
+#define MOVE_MAX_SPEED 0.2
 
 //Valeur en % où le robot doit ralentir durant son virage
 #define MOVE_SLOW_AT_PERCENT 50
