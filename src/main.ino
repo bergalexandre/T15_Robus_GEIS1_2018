@@ -38,6 +38,7 @@ Date: 01 oct 2018
 #define LINE_WIDTH 78
 #define NB_VECTOR_TO_COMPARE 10
 
+
 Pixy2 pixy;
 
 typedef enum
@@ -345,9 +346,10 @@ void MOVE_vAvancer(float fVitesse, int32_t i32Distance_mm,unsigned int accelerat
 }
 
 void MOVE_finDuVirage(int ID, int32_t distanceMM, float speed){
-  distanceMM -= 10;
   float *currentSpeed = ID == LEFT? &g_leftSpeed: &g_rightSpeed;
-  int32_t currentDistance = MOVE_getDistanceMM(ID);
+  int32_t initialDistance = MOVE_getDistanceMM(ID);
+  int32_t currentDistance = MOVE_getDistanceMM(ID) + initialDistance;
+  distanceMM += 10;
   while(currentDistance < distanceMM)
   {
     float facteur = (((float)distanceMM-(float)currentDistance)/distanceMM);
@@ -356,12 +358,11 @@ void MOVE_finDuVirage(int ID, int32_t distanceMM, float speed){
     {
       *currentSpeed = 0.125;
     }
-    strFloat(speed);
     MOTOR_SetSpeed(ID, *currentSpeed);
-    SerialPrintf("Virage à %s, distance = %i sur %i, vitesse = %s\n",
-    ID == RIGHT ? "LEFT": "RIGTH", (int)currentDistance, distanceMM, floatbuffer);
+    SerialPrintf("Virage à %s, distance = %i sur %i\n",
+    ID == RIGHT ? "LEFT": "RIGTH", (int)currentDistance, distanceMM);
     delay(1);
-    currentDistance = MOVE_getDistanceMM(ID);
+    currentDistance = MOVE_getDistanceMM(ID) + initialDistance;
   }
   *currentSpeed = 0.0;
   MOTOR_SetSpeed(ID, *currentSpeed);
@@ -377,27 +378,26 @@ void MOVE_finDuVirage(int ID, int32_t distanceMM, float speed){
 void MOVE_Rotation1Roue(float angle, int iRotationDirection){
   // Avance du coté opposé à la direction. Pour ceux qui connaissent pas, le ? C'est un opérateur conditionel.
   //Condition == TRUE ? Fait ça si TRUE: Sinon fait ça si FALSE;
-  int ID = iRotationDirection == LEFT ? RIGHT: LEFT;
-  //Consigne de distance pour la roue opposé au virage afin d'arriver à l'angle voulu. 
-  int32_t angleEnDistance = (2*PI*MOVE_LARGEUR_ROBOT*angle)/360;
   //Reset les encodeurss
   ENCODER_Reset(0);
   ENCODER_Reset(1);
 
-  float speed = angle > 20? 0.5: 0.2;
-  MOVE_vAccelerationSingleWheel(0.5, 100 ,ID, angleEnDistance);
+  int ID = iRotationDirection == LEFT ? RIGHT: LEFT;
   int32_t distanceActuelle = MOVE_getDistanceMM(ID);
+  //Consigne de distance pour la roue opposé au virage afin d'arriver à l'angle voulu. 
+  int32_t angleEnDistance = distanceActuelle + (2*PI*MOVE_LARGEUR_ROBOT*angle)/360;
+
+  float speed = angle > 20? 0.5: 0.2;
+  MOVE_vAccelerationSingleWheel(0.3, 100 ,ID, angleEnDistance);
 
   //Turn at max speed
-  while( ((distanceActuelle)*100/angleEnDistance) < MOVE_SLOW_AT_PERCENT)
+  while( distanceActuelle < angleEnDistance)
   {
     SerialPrintf("Virage à %s de %i degré, distance = %i sur %i\n", 
     iRotationDirection == LEFT ? "LEFT": "RIGTH", (int)angle, (int)distanceActuelle, angleEnDistance);
     distanceActuelle = MOVE_getDistanceMM(iRotationDirection == LEFT ? RIGHT: LEFT);
     delay(5);
   }
-  //Tourne lentement juste à ce que le robot soit à la consigne.
-  MOVE_finDuVirage(ID, angleEnDistance, speed);
 }
 
 void MOVE_FinduPivot(int32_t distanceMM, float speed){
@@ -722,7 +722,7 @@ void changeMode(camera_mode_t mode)
 	case suiveur_ligne:
 		pixy.changeProg("line");
       Serial.print("Mode suiveur de ligne\n");
-      pixy.setCameraBrightness(40);
+      pixy.setCameraBrightness(25);
 		break;
 	case detecteur_blocks:
 		pixy.changeProg("color_connected_components");
@@ -774,41 +774,6 @@ float GetRecenterFactor(Vector ligne)
  * @param ligne Le vecteur Pixy qui doit être analysé
  * @return int 
  */
-
-float GetVectorFactor(Vector ligne)
-{
-   int diffVecteur = ligne.m_x0 - ligne.m_x1;
-   const float vitesseMax = 0.2;
-   float ajustement = 0.0;
-   //Doit allez vers la gauche si positif
-   if(diffVecteur > 0)
-   {
-      ajustement = ((float)diffVecteur/ligne.m_x0)*vitesseMax; 
-   }
-   //Sinon vers la droite
-   else if(diffVecteur < 0)
-   {
-      ajustement = ((float)diffVecteur/ligne.m_x0)*vitesseMax; 
-      ajustement = -ajustement;
-   }
-   else
-   {
-      ajustement = 0.0;
-   }
-   if(ajustement > vitesseMax)
-   {
-      ajustement = vitesseMax;
-   }
-   else if(ajustement < -vitesseMax)
-   {
-      ajustement = -vitesseMax;
-   }
-
-   Serial.print("Suiveur de ligne: ajustement = ");
-   Serial.println(ajustement);
-   return ajustement;
-
-}
 
 position_ligne_t IsRobotCenter(int value)
 {
@@ -881,9 +846,6 @@ bool pixyGetLigne(Vector* ligne_retour)
                pixy.line.vectors->m_x0 = oldVecteur.m_x1;
                pixy.line.vectors->m_x1 = oldVecteur.m_x0;
             }
-            sprintf(buf, "ligne %i: ", i);
-            Serial.print(buf);
-            pixy.line.vectors->print();
             memcpy(&Vecteur[i], pixy.line.vectors, sizeof(Vector));
 
             bRet = true;
@@ -906,7 +868,11 @@ bool pixyGetLigne(Vector* ligne_retour)
       {
          bRet = true;
          *ligne_retour = Vecteur[0];
+         sprintf(buf, "ligne: ");
+         Serial.print(buf);
+         Vecteur[0].print();
       }
+      
    }
 
    return bRet;
@@ -940,7 +906,9 @@ void getCloserToLine()
       else
       {
          lignePerdu = true;
+         Serial.print("Je suis en avant de la ligne\n");
          MOVE_vStop();
+         delay(5000);
       }
       MOVE_vSetSpeed();
       delay(20);
@@ -951,105 +919,82 @@ void findLine()
 {
    Vector ligne;
    bool ligneTrouve = false;
-   MOVE_vAvancer(0.2, 200);
-   MOVE_Rotation2Roues(90);
+   MOVE_vAvancer(0.2, 150);
+   int temps_max = 20;
+   int i = 0;
+
+   for(i = 0; i < temps_max; i++)
+   {
+      g_leftSpeed = 0;
+      g_rightSpeed = 0.15;
+      MOVE_vSetSpeed();
+      if(pixyGetLigne(&ligne))
+      {
+         if(IsRobotCenter(ligne.m_x0 == ligne_centre))
+         {
+            ligneTrouve = true;
+            Serial.print("Le robot est aligné avec la ligne\n");
+            break;
+         }
+         Serial.print("Le robot est aligné avec la ligne\n");
+         break;
+      }
+      delay(50);
+   }
    MOVE_vStop();
 }
 
-void realign_ligne()
+bool isVectorHorizontal(Vector ligne)
 {
-   Vector ligne;
-   bool ligneAligne = false;
-   
-   while(ligneAligne == false)
+   int vecteur_x = abs(ligne.m_x1-ligne.m_x0);
+   int vecteur_y = abs(ligne.m_y1-ligne.m_y0);
+   bool bRet = false;
+   float ratio_x_on_y = (float)vecteur_x/vecteur_y;
+   Serial.print("Vecteur, ratio x/y = ");
+   Serial.println(ratio_x_on_y);
+   if(ratio_x_on_y >= 3)
    {
-      if(pixyGetLigne(&ligne))
-      {
-         //La ligne croche vers la gauche
-         if((ligne.m_x0 - ligne.m_x1) > 2)
-         {
-            g_leftSpeed = -0.10;
-            g_rightSpeed = 0.10;
-         }
-         //La ligne est croche vers la droite
-         else if((ligne.m_x0 - ligne.m_x1) < -2)
-         {
-            g_leftSpeed = 0.10;
-            g_rightSpeed = -0.10;
-         }
-         else
-         {
-            MOVE_vStop();
-            ligneAligne = true;
-         }
-      }
-      else
-      {
-         MOVE_vStop();
-         ligneAligne = true;
-      }
-      MOVE_vSetSpeed();
-      delay(20);
+      bRet = true;
    }
+   return bRet;
 }
 
-/**
- * @brief La fonction va remettre le robot au centre, bloquante juste à temps 
- * que le robot soit bien positionné car on a besoin de précision. 
- * 
- */
-void recenter_robot()
+bool isVectorVertical(Vector ligne)
 {
-   Vector ligne;
-   int lignePerdu = 10;
-   bool robotAuCentre = false;
-   //Essaie de se replacer tout les 50 ms vers le centre
-   while(lignePerdu > 0 && robotAuCentre == false)
+   int vecteur_x = abs(ligne.m_x1-ligne.m_x0);
+   int vecteur_y = abs(ligne.m_y1-ligne.m_y0);
+   bool bRet = false;
+   float ratio_y_on_x = (float)vecteur_y/vecteur_x;
+   Serial.print("Vecteur, ratio y/x = ");
+   Serial.println(ratio_y_on_x);
+   if(ratio_y_on_x >= 3)
    {
-      if(pixyGetLigne(&ligne) == true)
-      {
-         position_ligne_t position = IsRobotCenter(ligne.m_x0);
-         //Robot doit allez vers la gauche
-         if(position == ligne_gauche)
-         {
-            g_leftSpeed = 0.1;
-            g_rightSpeed = 0.15;
-         }
-         //Robot doit allez vers la droite
-         else if(position == ligne_droite)
-         {
-            g_leftSpeed = 0.15;
-            g_rightSpeed = 0.1;
-         }
-         else if(position == ligne_tres_au_centre)
-         {
-            //Tourne légèrement vers la gauche si la valeur est positive.
-            if((ligne.m_x0 - ligne.m_x1) > 2)
-            {
-               g_leftSpeed = 0.0;
-               g_rightSpeed = 0.15;
-            }
-            //Tourne légèrement vers la droite si la valeur est négative.
-            else if((ligne.m_x0 - ligne.m_x1) < -2)
-            {
-               g_leftSpeed = 0.15;
-               g_rightSpeed = 0.0;
-            }
-            else
-            {
-               robotAuCentre = true;
-               MOVE_vStop();
-            }
-         }
-      }
-      else
-      {
-         lignePerdu--;
-         MOVE_vStop();
-      }
-      MOVE_vSetSpeed();
-      delay(20);
+      bRet = true;
    }
+   return bRet;
+}
+
+void GetAjustementX0(float* left, float* right, Vector ligne)
+{
+   //En dessous de 1 ligne à gauche, sinon à droite   
+   float position_ligne = (float)ligne.m_x0/(ValueFromPercent(LINE_WIDTH, 50));
+   float vitesseMax = 0.20;
+
+   Serial.print("Position ligne = ");
+   Serial.println(position_ligne);
+   if(position_ligne < 1.0)
+   {
+      //Ligne est à gauche
+      *left = (float)((float)position_ligne)*(vitesseMax);
+      *right = vitesseMax;
+   }
+   else
+   {
+      //Ligne est à droite
+      *left = vitesseMax;
+      *right = (float)((float)2.0-position_ligne)*vitesseMax;
+   }
+   
 }
 
 void mode_ligne()
@@ -1059,52 +1004,41 @@ void mode_ligne()
 	// print all vectors
    if(pixyGetLigne(&ligne) == true)
    {
-      //Verify que le vecteur est valide
-      if(ligne.m_y0 > ValueFromPercent(LINE_HEIGHT, 80))
+      if(isVectorVertical(ligne))
       {
-         //Vérifie qu'on est plus au moins au centre
-         position_ligne_t position_ligne = IsRobotCenter(ligne.m_x0);
-         if(position_ligne == ligne_centre || position_ligne == ligne_tres_au_centre)
-         {
-            //Ajuste la vitesse au besoin pour suivre le vecteur
-            AdjustSpeed = GetVectorFactor(ligne);
-            g_rightSpeed = 0.2 - AdjustSpeed;
-            g_leftSpeed = 0.2;
-         }
-         else
-         {
-            realign_ligne();
-            MOVE_vStop();
-         }
+         GetAjustementX0(&g_leftSpeed, &g_rightSpeed, ligne);
+         Serial.print("Ajuste la vitesse gauche et droite: ");
+         Serial.print(g_leftSpeed);
+         Serial.print(" // ");
+         Serial.print(g_rightSpeed);
       }
-      else if((ligne.m_y0 - ligne.m_y1) < 8)
+      else if(isVectorHorizontal)
       {
-         Serial.print("Le robot est trop loin\n");
+         Serial.print("Le robot est trop loin de la ligne\n");
          //TODO
          //Robot doit revenir vers la ligne
          //Get closer to the line
          getCloserToLine();
-         Serial.print("Le robot doit trouver la ligne\n");
          findLine();
-         Serial.print("Le robot doit s'aligner\n");
-         realign_ligne();
          MOVE_vStop();
       }
       else
-      {
+      { 
          //essait de voir si en pivotant il comprend la ligne.
-         Serial.print("Je comprend pas la ligne\n");
+         Serial.print("ligne etrange, pivote\n");
          //Tourne vers où il pense la ligne serait perpendiculaire.
          if(ligne.m_x0 < ligne.m_x1)
          {
+            Serial.print("Va à droite\n");
             //Pivote vers la droite
-            g_rightSpeed = 0.15;
-            g_leftSpeed = 0;
+            g_rightSpeed = 0.0;
+            g_leftSpeed = 0.15;
          }
          else
          {
-            g_leftSpeed = 0.15;
-            g_rightSpeed = 0;
+            Serial.print("Va à gauche\n");
+            g_leftSpeed = 0.0;
+            g_rightSpeed = 0.15;
          }
       }
    }
@@ -1115,8 +1049,9 @@ void mode_ligne()
       Serial.print("Pas de vecteur\n");
    }
    MOVE_vSetSpeed();
-   delay(20);
+   delay(100);
 }
+
 
 void demo_claw()
 {
@@ -1125,7 +1060,7 @@ void demo_claw()
    ballDrop();
    }
    if (i==15){
-   ballGrab(85);
+   ballGrab(70);
    }
    if (i==20){
    ballDrop();
@@ -1133,6 +1068,23 @@ void demo_claw()
    }
 
    i++;
+}
+
+void demo_spin_claw()
+{
+   SOFT_TIMER_Update();
+   ballGrab(70);
+   delay(1000);
+   SOFT_TIMER_Update();
+  while(1)
+  {
+      MOTOR_SetSpeed(LEFT, 0.30);
+      MOTOR_SetSpeed(RIGHT, -0.30);
+      delay(5000);
+      MOTOR_SetSpeed(LEFT, -0.30);
+      MOTOR_SetSpeed(RIGHT, 0.30);
+      delay(5000);
+  }
 }
 
 void setup(){
@@ -1144,8 +1096,12 @@ void setup(){
   MOTOR_SetSpeed(RIGHT,0);
   MOTOR_SetSpeed(LEFT,0);
   ballDrop();
+  SOFT_TIMER_Update();
+  delay(1000);
+  SOFT_TIMER_Update();
   //Attend que le pixy soit ready:
   int pixy_answer;
+  
   do
   {
       pixy_answer = pixy.getVersion();
@@ -1158,8 +1114,6 @@ void setup(){
 void loop() {
   
   SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
-  //demo_claw();
-  //CAPTEUR_distanceIR(CAPTEUR_IR_DISTANCE_BAS);
   mode_ligne();
 }
 
