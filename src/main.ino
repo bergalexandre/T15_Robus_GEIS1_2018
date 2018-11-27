@@ -16,7 +16,7 @@ Date: 01 oct 2018
 #include "SparkFunISL29125.h"
 #include "move.h"
 #include "Sortie.h"
-#include <Pixy2.h>
+#include <Pixy2SPI_SS.h>
 #include <Arduino.h>
 
 /*******************************************************************************
@@ -33,6 +33,8 @@ Date: 01 oct 2018
 #define LINE_HEIGHT 51
 #define LINE_WIDTH 78
 #define NB_VECTOR_TO_COMPARE 10
+#define SLAVE_PIN_PIXY 37
+
 
 /*******************************************************************
  * Typedef / enum / struct
@@ -84,7 +86,7 @@ void updateGolfotron_State();
  * Variables/classe locales
 *******************************************************************************/
 
-Pixy2 pixy;
+Pixy2SPI_SS pixy;
 float g_leftSpeed = 0.0;
 float g_rightSpeed = 0.0;
 int currently_carrying = 0;
@@ -799,7 +801,7 @@ void setup(){
   ballDrop();
   delay(1000);
   //Attend que le pixy soit ready:
-  while(pixy.init() == PIXY_RESULT_TIMEOUT);
+  while(pixy.init(SLAVE_PIN_PIXY) == PIXY_RESULT_TIMEOUT);
   changeMode(camera_detecteur_blocks);
 }
 
