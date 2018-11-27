@@ -127,6 +127,8 @@ float fSpeedAdjustment(){
 int32_t MOVE_getDistanceMM(int ID)
 {
   int32_t d = ENCODER_Read(ID)*((float)1/MOVE_PULSE_PER_TURN)*MOVE_WHEEL_DIAMETER*PI;
+  Serial.print("distance = ");
+  Serial.println(d);
   return d;
 }
 
@@ -577,7 +579,7 @@ Suiveur_position_t mode_ligne()
    }
    else
    {
-      g_leftSpeed = -0.13;
+      g_leftSpeed = 0.13;
       g_rightSpeed = -0.13;
       Serial.print("Pas de vecteur\n");
    }
@@ -594,23 +596,20 @@ Suiveur_position_t mode_ligne()
 bool GetGolfBall(Block* balle)
 {
    bool bRet = false;
-   if (pixy.ccc.getBlocks(true, 1) > 0) //rentre s'il y a un objet de détecté
+   if (pixy.ccc.getBlocks(true, CCC_SIG1) > 0) //rentre s'il y a un objet de détecté
 	{
 		for (int i = 0; i < pixy.ccc.numBlocks; i++) // trouve la position de la balle dans l'array
 		{
-			if (pixy.ccc.blocks[i].m_signature == 0)
-         {
+         pixy.ccc.blocks[i].print();
             //Compare le ratio largeur/hauteur
-            if(((pixy.ccc.blocks[i].m_width >= ValueFromPercent(pixy.ccc.blocks[i].m_height, 80)) && 
-            (pixy.ccc.blocks[i].m_width <= pixy.ccc.blocks[i].m_height)) ||
-            ((pixy.ccc.blocks[i].m_height >= ValueFromPercent(pixy.ccc.blocks[i].m_width, 80)) && 
-            (pixy.ccc.blocks[i].m_height <= pixy.ccc.blocks[i].m_width)))
-            {
-               *balle = pixy.ccc.blocks[i];
-               bRet = true;
-               Serial.print("Balle trouvee.\n");
-            }
-         }
+            // if(((pixy.ccc.blocks[i].m_width >= ValueFromPercent(pixy.ccc.blocks[i].m_height, 60)) && 
+            // (pixy.ccc.blocks[i].m_width <= pixy.ccc.blocks[i].m_height)) ||
+            // ((pixy.ccc.blocks[i].m_height >= ValueFromPercent(pixy.ccc.blocks[i].m_width, 60)) && 
+            // (pixy.ccc.blocks[i].m_height <= pixy.ccc.blocks[i].m_width)))
+            // {
+         bRet = true;
+         *balle = pixy.ccc.blocks[i];
+            // }
 		}
    }
    return bRet;
@@ -671,11 +670,12 @@ Seek_GolfBall_t Find_Golf_Ball(){
 	}
 	else
 	{
-      int rotation_mm = 0;
+      int rotation_mm = (2*PI*MOVE_LARGEUR_ROBOT*180)/360;
       g_leftSpeed = -0.13;
       g_rightSpeed = 0.13;
       if(MOVE_getDistanceMM(LEFT) > rotation_mm)
       {
+         Serial.print("Pas de balle trouve, tour complet de fait\n");
          tRet = seek_Pas_de_balle;
       }
 	}
@@ -688,21 +688,28 @@ Seek_GolfBall_t Find_Golf_Ball(){
 void CheckGolfBall()
 {
    Block balle;
+   Serial.print("Check for golf ball\n");
    if(GetGolfBall(&balle))
    {
+      Serial.print("Reset timer_id_go\n");
       SOFT_TIMER_Enable(TIMER_ID_GO);
    }
+   delay(500);
 }
 
 /***************** MAIN ****************/
 
 void updateGolfotron_State()
 {
-   if(MOVE_getDistanceMM(LEFT) > 300 && currently_carrying == false)
+   if((MOVE_getDistanceMM(LEFT) > 300) && (currently_carrying == false) && (Golfotron_state == Golfotron_Seek))
    {
+      Serial.print("Cherche la balle\n");
       Golfotron_state = Golfotron_Ambush_golf_ball;
-      ENCODER_Reset(LEFT);
-      ENCODER_Reset(RIGHT);
+   }
+   else if(Golfotron_state != Golfotron_Seek)
+   {
+      Serial.print("Ferme le timer\n");
+      SOFT_TIMER_Disable(TIMER_ID_STATE);
    }
 }
 
@@ -714,22 +721,38 @@ void Golfotron_depart()
 
 void changeMode(camera_mode_t mode)
 {
+   int changeProg;
+   int changeLight;
 	switch(mode)
 	{
 	case camera_suiveur_ligne:
-		pixy.changeProg("line");
+		changeProg = pixy.changeProg("line");
       Serial.print("Mode suiveur de ligne\n");
-      pixy.setCameraBrightness(0);
+      delay(20);
+      changeLight = pixy.setCameraBrightness(28);
 		break;
 	case camera_detecteur_blocks:
 		pixy.changeProg("color_connected_components");
       Serial.print("Mode block\n");
-      pixy.setCameraBrightness(35);
+      delay(20);
+      pixy.setCameraBrightness(18);
 		break;
 	default:
 		pixy.changeProg("color_connected_components");
       Serial.print("Mode block\n");
+      delay(20);
+      pixy.setCameraBrightness(18);
 		break;
+   }
+   if(changeProg != PIXY_RESULT_OK)
+   {
+      Serial.print("Erro while changing prog\n");
+      changeMode(mode);
+   }
+   if(changeLight == PIXY_RESULT_ERROR)
+   {
+      Serial.print("Erro while changing light\n");
+      changeMode(mode);
    }
 }
 
@@ -774,20 +797,16 @@ void setup(){
   setup_Sorties();
   setup_timers();
   ballDrop();
+  delay(1000);
   //Attend que le pixy soit ready:
-  int pixy_answer;
-  
-  do
-  {
-      pixy_answer = pixy.getVersion();
-      SOFT_TIMER_Update();
-      delay(100);
-  }while(pixy_answer == PIXY_RESULT_BUSY || pixy_answer == PIXY_RESULT_ERROR);
+  while(pixy.init() == PIXY_RESULT_TIMEOUT);
   changeMode(camera_detecteur_blocks);
 }
 
 void logique()
 {
+   Serial.print("Golfotron Mode = ");
+   Serial.println(Golfotron_state);
    switch(Golfotron_state)
    {
       //Attend que la balle soit potter
@@ -810,11 +829,13 @@ void logique()
             //Ne trouve pas de ligne à suivre :(
             if(findLine() == false && Golfotron_PreviousState == Golfotron_idle)
             {
+               Serial.print("Aucune ligne de trouvé\n");
                Golfotron_state = Golfotron_idle;
                break; 
             }
             ENCODER_Reset(LEFT);
             ENCODER_Reset(RIGHT);
+            SOFT_TIMER_Enable(TIMER_ID_STATE);
          }
          Suiveur_position_t suiveur_position = mode_ligne();
          if(suiveur_position == suiveur_but && currently_carrying == false)
@@ -839,6 +860,8 @@ void logique()
          if(Golfotron_PreviousState != Golfotron_state)
          {
             changeMode(camera_detecteur_blocks);
+            ENCODER_Reset(LEFT);
+            ENCODER_Reset(RIGHT);
          }
 
          Seek_GolfBall_t seek = Find_Golf_Ball();
@@ -878,7 +901,18 @@ void logique()
 
 void loop() {
   
-  SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
-  mode_ligne();
+   SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
+   //logique();
+   // MOTOR_SetSpeed(LEFT, 0.15);
+   // MOTOR_SetSpeed(RIGHT, 0.15);
+
+   // Serial.print("Encore LEFT = ");
+   // Serial.println(ENCODER_Read(LEFT));
+   // Serial.print("Encore RIGHT = ");
+   // Serial.println(ENCODER_Read(RIGHT));
+
+   // MOVE_getDistanceMM(LEFT);
+   // MOVE_getDistanceMM(RIGHT);
+   // delay(100);
 }
 
