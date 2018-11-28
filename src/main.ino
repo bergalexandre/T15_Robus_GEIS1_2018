@@ -27,7 +27,6 @@ Date: 01 oct 2018
 #define TIMER_ID_DROP 2
 #define TIMER_ID_GO 3
 
-
 //Define pour suiveur de ligne.
 // 0,0 en haut à gauche
 #define LINE_HEIGHT 51
@@ -90,8 +89,11 @@ Pixy2SPI_SS pixy;
 float g_leftSpeed = 0.0;
 float g_rightSpeed = 0.0;
 int currently_carrying = 0;
+int angle_From_Line = 0;
+int distance_From_Line = 0;
 Golfotron_state_t Golfotron_state = Golfotron_idle;
 Golfotron_state_t Golfotron_PreviousState = Golfotron_idle;
+
 
 /*******************************************************************************
  * fonctions
@@ -147,6 +149,8 @@ void MOVE_vStop()
    MOTOR_SetSpeed(LEFT, g_leftSpeed);
    MOTOR_SetSpeed(RIGHT, g_rightSpeed);
 }
+
+
 
 void MOVE_vAvancer(float fVitesse, int32_t i32Distance_mm,unsigned int accelerationTime = 125)
 {
@@ -216,16 +220,22 @@ bool getBall(){
       {
          //On a probablement perdu la balle.
          Serial.print("Where did the ball go?\n");
-         bRet = true;
+         bRet = false;
          break;
       }
    }
-   Serial.print("La balle est icitte meyn!\n");
-   MOVE_vStop();
-   delay(50);
-   if(Golfotron_state == Golfotron_Eliminate)
+   if(bRet == true)
    {
-      ballGrab(90);
+      Serial.print("La balle est icitte meyn!\n");
+      MOVE_vStop();
+      delay(50);
+      ballGrab(130);
+      delay(500);
+      distance_From_Line += ENCODER_Read(LEFT);  
+   }
+   else
+   {
+      MOVE_vStop();
    }
    return bRet;
 }
@@ -632,11 +642,13 @@ Seek_GolfBall_t Find_Golf_Ball(){
 		float ratio;
       Serial.print("Balle trouvee.\n");
 
-		if (balle.m_y < 180) // si la balle est trop loin avance
+		if (balle.m_y < 170) // si la balle est trop loin avance
 		{
          Serial.print("Balle trop loin.\n");
 			g_rightSpeed = 0.15;
          g_leftSpeed = g_rightSpeed;
+
+         distance_From_Line = MOVE_getDistanceMM(LEFT);
 		}
 
 		if (balle.m_y > 190)// si trop proche recule
@@ -648,22 +660,22 @@ Seek_GolfBall_t Find_Golf_Ball(){
 
 		ratio = ((float)balle.m_x) / ((float)(pixy.frameWidth / 2.0)); //ratio de la postion en x de la ball va de 0 à 2 0 étant a gauche et 2 a droite
 	
-		if (balle.m_y <= 190 && balle.m_y >= 180) // si la balle est dans le bon threshold de distance, recentre la balle
+		if (balle.m_y <= 190 && balle.m_y >= 170) // si la balle est dans le bon threshold de distance, recentre la balle
 		{
          Serial.print("On recentre la balle.\n");
-			if (ratio >= 1.2)
+			if (ratio >= 1.1)
 			{
             Serial.print("Balle trop a droite.\n");
 				g_leftSpeed = 0.1;
 				g_rightSpeed = 0;
 			}
-			else if (ratio <= 0.8)
+			else if (ratio <= 0.9)
          {
             Serial.print("Balle trop a gauche.\n");
 				g_leftSpeed = 0.1;
 				g_rightSpeed = 0;
 			}
-			else if (ratio < 1.2 && ratio > 0.8){
+			else if (ratio < 1.1 && ratio > 0.9){
 				Serial.print("Balle centree.\n");
             g_leftSpeed = g_rightSpeed = 0.0;
             tRet = seek_Balle_trouve;
@@ -680,10 +692,11 @@ Seek_GolfBall_t Find_Golf_Ball(){
          Serial.print("Pas de balle trouve, tour complet de fait\n");
          tRet = seek_Pas_de_balle;
       }
+      angle_From_Line = rotation_mm;
 	}
 
 	MOVE_vSetSpeed();
-   delay(20);
+   delay(10);
    return tRet;
 }
 
@@ -731,19 +744,19 @@ void changeMode(camera_mode_t mode)
 		changeProg = pixy.changeProg("line");
       Serial.print("Mode suiveur de ligne\n");
       delay(20);
-      changeLight = pixy.setCameraBrightness(28);
+      changeLight = pixy.setCameraBrightness(40);
 		break;
 	case camera_detecteur_blocks:
 		pixy.changeProg("color_connected_components");
       Serial.print("Mode block\n");
       delay(20);
-      pixy.setCameraBrightness(18);
+      pixy.setCameraBrightness(28);
 		break;
 	default:
 		pixy.changeProg("color_connected_components");
       Serial.print("Mode block\n");
       delay(20);
-      pixy.setCameraBrightness(18);
+      pixy.setCameraBrightness(28);
 		break;
    }
    if(changeProg != PIXY_RESULT_OK)
@@ -792,20 +805,21 @@ void setup_Moteurs(){
 }
 
 void setup(){
-   pinMode(40, OUTPUT);
-   digitalWrite(40, 1);
+   distance_From_Line = 0;
+   pinMode(SLAVE_PIN_PIXY, OUTPUT);
+   digitalWrite(SLAVE_PIN_PIXY, 1);
    BoardInit();
-   SOFT_TIMER_Update();
    Serial.begin(9600);
    setup_Moteurs();
    setup_Sorties();
    setup_timers();
+   SOFT_TIMER_Update();
    ballDrop();
-   delay(1000);
    //Attend que le pixy soit ready:
    while(pixy.init(SLAVE_PIN_PIXY) == PIXY_RESULT_TIMEOUT);
    changeMode(camera_detecteur_blocks); 
    delay(1000);
+   SOFT_TIMER_Update();
 }
 
 void logique()
@@ -901,12 +915,43 @@ void logique()
          break;
       }
    }
-   Golfotron_PreviousState = Golfotron_state;
+    Golfotron_PreviousState = Golfotron_state;
 }
 
 void loop() {
   
    SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
-   logique();
+   //logique();
+
+   if(currently_carrying == false)
+   {
+      if(Find_Golf_Ball() == seek_Balle_trouve)
+      {
+         MOVE_vStop();
+         delay(2000);
+         getBall();
+      }
+   }
+   else
+   {
+      MOVE_vStop();
+   }
+
+   //
+   //getBall();
+   //CAPTEUR_distanceIR(A0);
+   //3demo_claw();
+   //delay(200);
+   /*
+   MOTOR_SetSpeed(LEFT, 0.13);
+   MOTOR_SetSpeed(RIGHT, -0.13);
+
+   while(1)
+   {
+      digitalWrite(40, 1);
+      MOVE_getDistanceMM(LEFT);
+      MOVE_getDistanceMM(RIGHT);
+      delay(500);
+   }*/
 }
 

@@ -33,7 +33,7 @@ public:
 	  ssPin = arg;
     pinMode(ssPin, OUTPUT);
     SPI.begin();
-    SPI.beginTransaction(SPISettings(PIXY_SPI_CLOCKRATE, MSBFIRST, SPI_MODE1));
+    //SPI.beginTransaction(SPISettings(PIXY_SPI_CLOCKRATE, MSBFIRST, SPI_MODE1));
 	return 0;
   }
 	
