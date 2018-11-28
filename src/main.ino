@@ -33,7 +33,7 @@ Date: 01 oct 2018
 #define LINE_HEIGHT 51
 #define LINE_WIDTH 78
 #define NB_VECTOR_TO_COMPARE 10
-#define SLAVE_PIN_PIXY 37
+#define SLAVE_PIN_PIXY 40
 
 
 /*******************************************************************
@@ -792,17 +792,20 @@ void setup_Moteurs(){
 }
 
 void setup(){
-  BoardInit();
-  SOFT_TIMER_Update();
-  Serial.begin(9600);
-  setup_Moteurs();
-  setup_Sorties();
-  setup_timers();
-  ballDrop();
-  delay(1000);
-  //Attend que le pixy soit ready:
-  while(pixy.init(SLAVE_PIN_PIXY) == PIXY_RESULT_TIMEOUT);
-  changeMode(camera_detecteur_blocks);
+   pinMode(40, OUTPUT);
+   digitalWrite(40, 1);
+   BoardInit();
+   SOFT_TIMER_Update();
+   Serial.begin(9600);
+   setup_Moteurs();
+   setup_Sorties();
+   setup_timers();
+   ballDrop();
+   delay(1000);
+   //Attend que le pixy soit ready:
+   while(pixy.init(SLAVE_PIN_PIXY) == PIXY_RESULT_TIMEOUT);
+   changeMode(camera_detecteur_blocks); 
+   delay(1000);
 }
 
 void logique()
@@ -904,17 +907,6 @@ void logique()
 void loop() {
   
    SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
-   //logique();
-   // MOTOR_SetSpeed(LEFT, 0.15);
-   // MOTOR_SetSpeed(RIGHT, 0.15);
-
-   // Serial.print("Encore LEFT = ");
-   // Serial.println(ENCODER_Read(LEFT));
-   // Serial.print("Encore RIGHT = ");
-   // Serial.println(ENCODER_Read(RIGHT));
-
-   // MOVE_getDistanceMM(LEFT);
-   // MOVE_getDistanceMM(RIGHT);
-   // delay(100);
+   logique();
 }
 
