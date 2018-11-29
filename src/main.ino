@@ -60,7 +60,8 @@ typedef enum
    Golfotron_Seek,
    Golfotron_Ambush_golf_ball,
    Golfotron_Eliminate,
-   Golfotron_Fin_De_Ligne
+   Golfotron_Fin_De_Ligne,
+   Golfotron_retour_a_la_base
 } Golfotron_state_t;
 
 typedef enum
@@ -302,11 +303,11 @@ void MOVE_vAvancer(float fVitesse, int32_t i32Distance_mm,unsigned int accelerat
    {
       if(i32Distance_mm > 0)
       {
-         i32Distance_mm = -i32Distance_mm;
+         i32Distance_mm = i32Distance_mm;
       }
    }
 
-   while(MOVE_getDistanceMM(LEFT) < i32Distance_mm)
+   while(abs(MOVE_getDistanceMM(LEFT)) < i32Distance_mm)
    {
       if(DEBUG_CAPTEUR)
       {
@@ -458,10 +459,14 @@ bool isVectorHorizontal(Vector ligne)
    int vecteur_x = abs(ligne.m_x1-ligne.m_x0);
    int vecteur_y = abs(ligne.m_y1-ligne.m_y0);
    bool bRet = false;
+   if(vecteur_y == 0)
+   {
+      return bRet;
+   }
    float ratio_x_on_y = (float)vecteur_x/vecteur_y;
    Serial.print("Vecteur, ratio x/y = ");
    Serial.println(ratio_x_on_y);
-   if(ratio_x_on_y >= 3)
+   if(ratio_x_on_y >= 3.0)
    {
       bRet = true;
    }
@@ -473,10 +478,14 @@ bool isVectorVertical(Vector ligne)
    int vecteur_x = abs(ligne.m_x1-ligne.m_x0);
    int vecteur_y = abs(ligne.m_y1-ligne.m_y0);
    bool bRet = false;
+   if(vecteur_x == 0)
+   {
+      return bRet;
+   }
    float ratio_y_on_x = (float)vecteur_y/vecteur_x;
    Serial.print("Vecteur, ratio y/x = ");
    Serial.println(ratio_y_on_x);
-   if(ratio_y_on_x >= 3)
+   if(ratio_y_on_x >= 3.0)
    {
       bRet = true;
    }
@@ -614,12 +623,18 @@ bool GetPixyBarCode(Barcode* depart)
    int8_t pixy_line = pixy.line.getMainFeatures(LINE_BARCODE, true);
    if(pixy_line & LINE_BARCODE)
    {
-      if(pixy.line.barcodes[0].m_code == 6)
+      for(int i = 0; i < pixy.line.numBarcodes; i++)
       {
-         bRet = true;
-         memcpy(depart, &pixy.line.barcodes[0], sizeof(Barcode));
+         if(pixy.line.barcodes[i].m_code == 6)
+         {
+            bRet = true;
+            memcpy(depart, &pixy.line.barcodes[i], sizeof(Barcode));
+            pixy.line.barcodes[i].print();
+            break;
+         }
       }
    }
+
    return bRet;
 }
 
@@ -680,23 +695,27 @@ void retourLigne(int angle, int distance)
    Serial.print(angle);
    Serial.print(" // ");
    Serial.print(distance);
-   MOVE_Rotation2Roues(360-angle);
+   //MOVE_Rotation2Roues(360-angle);
    //MOVE_vAvancer(0.20,distance);
 }
 
 bool findLine(bool avance = true)
 {
-   Vector ligne;
+   Vector ligne = {0};
    bool ligneTrouve = false;
    if(avance == true)
    {
       MOVE_vAvancer(0.2, 200);
    }
-   int temps_max = 20;
+
    ENCODER_Reset(LEFT);
    ENCODER_Reset(RIGHT);
-   while(ENCODER_Read(LEFT) < FULL_TURN)
+   while(abs(MOVE_getDistanceMM(LEFT)) < FULL_TURN)
    {
+      Serial.print("Entrain de tourner: ");
+      Serial.print(MOVE_getDistanceMM(LEFT));
+      Serial.print(" ");
+      Serial.println(FULL_TURN);
       g_leftSpeed = -0.13;
       g_rightSpeed = 0.13;
       MOVE_vSetSpeed();
@@ -706,7 +725,12 @@ bool findLine(bool avance = true)
          {
             ligneTrouve = true;
             Serial.print("Le robot est aligne avec la ligne\n");
-            break;
+            return ligneTrouve;
+         }
+         else if(avance == false)
+         {
+            Serial.print("avance\n");
+            MOVE_vAvancer(0.2, 100);
          }
       }
       delay(50);
@@ -740,24 +764,21 @@ void GetAjustementX0(float* left, float* right, Vector ligne)
 
 void AucunVecteur(Vector previousLine, int* angle)
 {
-   if(*angle == 0)
-      {
-         ENCODER_Reset(LEFT);
-         ENCODER_Reset(RIGHT);
-      }
-      //On ne voit plus de ligne
-      if(MOVE_getDistanceMM(LEFT) > FULL_TURN)
-      {
-         MOVE_vAvancer(-0.2, 100);
-         ENCODER_Reset(LEFT);
-         ENCODER_Reset(RIGHT);
-      }
-      else
-      {
-         g_leftSpeed = 0.13;
-         g_rightSpeed = -0.13;
-         Serial.print("Pas de vecteur\n");
-      }
+   static bool bMem = false;
+   printf("aucun vecteur\n");
+   //On ne voit plus de ligne
+   if(bMem == true)
+   {
+      MOVE_vAvancer(0.2, 100);
+      ENCODER_Reset(LEFT);
+      ENCODER_Reset(RIGHT);
+      *angle = 0;
+      bMem = false;
+   }
+   else
+   {
+      bMem = findLine(false);
+   }
 }
 
 Suiveur_position_t mode_ligne()
@@ -766,7 +787,7 @@ Suiveur_position_t mode_ligne()
    static int angle_PasDeLigne = 0;       //Angle fait depuis que la ligne n'est pas vu.
    static Vector previousLine = {0};
    Barcode depart;
-   Vector ligne;
+   Vector ligne = {0};
 	// print all vectors
    if(pixyGetLigne(&ligne) == true)
    {
@@ -788,28 +809,15 @@ Suiveur_position_t mode_ligne()
       }
       else
       { 
-         //essait de voir si en pivotant il comprend la ligne.
-         Serial.print("ligne etrange, pivote\n");
-         //Tourne vers où il pense la ligne serait perpendiculaire.
-         if(ligne.m_x0 < ligne.m_x1)
-         {
-            Serial.print("Va à droite\n");
-            //Pivote vers la droite
-            g_rightSpeed = 0.0;
-            g_leftSpeed = 0.15;
-         }
-         else
-         {
-            Serial.print("Va à gauche\n");
-            g_leftSpeed = 0.0;
-            g_rightSpeed = 0.15;
-         }
+         AucunVecteur(previousLine, &angle_PasDeLigne);     
       }
       previousLine = ligne;
    }
    else if(isVectorVertical(previousLine) == true)
    {
+      Serial.print("previous line\n");
       suiveur_ligne = suiveur_but;
+      memset(&previousLine, 0, sizeof(Vector));
    }
    else
    {
@@ -817,18 +825,9 @@ Suiveur_position_t mode_ligne()
    }
 
    //Ajouter les barcodes ici
-   if(GetPixyBarCode(&depart) == true)
+   if((GetPixyBarCode(&depart) == true) && (currently_carrying == true))
    {
-      if(bIsBarCodeClose(depart) == true)
-      {
-         MOVE_vStop();
-         MOVE_Rotation2Roues(270);
-         MOVE_vAvancer(0.2, 200);
-         delay(200);
-         ballDrop();
-         MOVE_vAvancer(-0.2, 200);
-         suiveur_ligne = suiveur_depart;
-      }
+      suiveur_ligne = suiveur_depart;
    }
    MOVE_vSetSpeed();
    delay(100);
@@ -837,10 +836,10 @@ Suiveur_position_t mode_ligne()
 
 /***************** block ***************/
 
-bool GetGolfBall(Block* balle)
+bool GetBlock(Block* block, int signature)
 {
    bool bRet = false;
-   if (pixy.ccc.getBlocks(true, CCC_SIG1) > 0) //rentre s'il y a un objet de détecté
+   if (pixy.ccc.getBlocks(true, signature) > 0) //rentre s'il y a un objet de détecté
 	{
 		for (int i = 0; i < pixy.ccc.numBlocks; i++) // trouve la position de la balle dans l'array
 		{
@@ -852,7 +851,7 @@ bool GetGolfBall(Block* balle)
             // (pixy.ccc.blocks[i].m_height <= pixy.ccc.blocks[i].m_width)))
             // {
          bRet = true;
-         *balle = pixy.ccc.blocks[i];
+         *block = pixy.ccc.blocks[i];
             // }
 		}
    }
@@ -869,7 +868,7 @@ Seek_GolfBall_t Find_Golf_Ball(){
    Seek_GolfBall_t tRet = seek_Recherche_en_cours;
    Block balle;
    
-	if (GetGolfBall(&balle) == true) //rentre s'il y a un objet de détecté
+	if (GetBlock(&balle, CCC_SIG1) == true) //rentre s'il y a un objet de détecté
 	{
 		float ratio;
       Serial.print("Balle trouvee.\n");
@@ -935,12 +934,64 @@ void CheckGolfBall()
 {
    Block balle;
    Serial.print("Check for golf ball\n");
-   if(GetGolfBall(&balle))
+   if(GetBlock(&balle, CCC_SIG1))
    {
       Serial.print("Reset timer_id_go\n");
       SOFT_TIMER_Enable(TIMER_ID_GO);
    }
    delay(500);
+}
+
+void ReleaseBall()
+{
+   MOVE_vStop();
+   MOVE_Rotation2Roues(260);
+   MOVE_vAvancer(0.2, 200);
+   delay(200);
+   ballDrop();
+   MOVE_vAvancer(-0.2, 200);
+}
+
+bool StopWithGreen()
+{
+   bool bRet = false;
+   Block vert;
+   float vitesseMax = 0.2;
+   if(GetBlock(&vert, CCC_SIG2) == true)
+   {
+      //Largeur = 110, hauteur = 50 
+      if((vert.m_width < 110) && (vert.m_width < 50))
+      {
+         float position = ((float)vert.m_x/(ValueFromPercent(pixy.frameWidth,50)));
+         Serial.println(position);
+         Serial.println((ValueFromPercent(pixy.frameWidth,50)));
+         if(position > 1.0)
+         {
+            g_leftSpeed = (float)((float)2.0-position)*vitesseMax;
+            g_rightSpeed = vitesseMax;
+         }
+         else
+         {
+            g_leftSpeed = (float)((float)position)*vitesseMax;
+            g_rightSpeed = vitesseMax;
+         }      
+      }
+      else
+      {
+         bRet = true;
+         MOVE_vStop();
+      }
+   }
+   else
+   {
+      g_leftSpeed = vitesseMax;
+      g_rightSpeed = vitesseMax + fSpeedAdjustment();
+   }
+   Serial.println(g_leftSpeed);
+   Serial.println(g_rightSpeed);
+   delay(20);
+   //MOVE_vSetSpeed();
+   return bRet;
 }
 
 /***************** MAIN ****************/
@@ -1047,12 +1098,12 @@ void setup(){
    SOFT_TIMER_Update();
    ballDrop();
    //Attend que le pixy soit ready:
-   while(pixy.init(SLAVE_PIN_PIXY) == PIXY_RESULT_TIMEOUT);
+   while(pixy.init(SLAVE_PIN_PIXY) == PIXY_RESULT_TIMEOUT)
+   {
+      SOFT_TIMER_Update();
+      delay(100);
+   };
    changeMode(camera_detecteur_blocks); 
-   delay(1000);
-   SOFT_TIMER_Update();
-   Golfotron_state = Golfotron_Seek;
-   currently_carrying = true;
 }
 
 
@@ -1102,6 +1153,10 @@ void logique()
             {
                Golfotron_state = Golfotron_Eliminate;
             }
+            else
+            {
+               currently_carrying = true;
+            }
          }
          else if(suiveur_position == suiveur_but)
          {
@@ -1110,7 +1165,8 @@ void logique()
          else if(suiveur_position == suiveur_depart)
          {
             //Make a 90 degre turn to the opposite of the barcodes
-            Golfotron_state = Golfotron_idle;
+            Serial.print("Change en mode carre vert\n");
+            Golfotron_state = Golfotron_retour_a_la_base;
          }
          break;
       }
@@ -1155,6 +1211,22 @@ void logique()
       {
          Golfotron_state = Golfotron_Ambush_golf_ball;
          MOVE_Rotation2Roues(180);
+         break;
+      }
+      case Golfotron_retour_a_la_base:
+      {
+         if(Golfotron_PreviousState != Golfotron_retour_a_la_base)
+         {
+            ENCODER_Reset(LEFT);
+            ENCODER_Reset(RIGHT);
+            changeMode(camera_detecteur_blocks);
+         }
+         if(StopWithGreen() == true)
+         {
+            ReleaseBall();
+            Golfotron_state = Golfotron_idle;   
+         }
+         break;
       }
       //Mode inconnu
       default:
@@ -1170,6 +1242,7 @@ void loop() {
   
    SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
    logique();
+   //mode_ligne();
    // if(currently_carrying == false)
    // {
    //    if(Find_Golf_Ball() == seek_Balle_trouve)
