@@ -28,6 +28,6 @@ typedef enum
     NOMBRE_DE_COULEUR
 } CAPTEUR_Couleur;
 
-#define DEBUG_CAPTEUR true
+#define DEBUG_CAPTEUR false
 
 #endif //__CAPTEUR_H__

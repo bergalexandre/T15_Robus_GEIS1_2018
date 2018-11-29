@@ -31,9 +31,10 @@ Date: 01 oct 2018
 // 0,0 en haut à gauche
 #define LINE_HEIGHT 51
 #define LINE_WIDTH 78
-#define NB_VECTOR_TO_COMPARE 10
+#define NB_VECTOR_TO_COMPARE 1
 #define SLAVE_PIN_PIXY 40
 
+#define FULL_TURN (2*PI*MOVE_LARGEUR_ROBOT*180)/360
 
 /*******************************************************************
  * Typedef / enum / struct
@@ -58,14 +59,15 @@ typedef enum
    Golfotron_idle,
    Golfotron_Seek,
    Golfotron_Ambush_golf_ball,
-   Golfotron_Eliminate
+   Golfotron_Eliminate,
+   Golfotron_Fin_De_Ligne
 } Golfotron_state_t;
 
 typedef enum
 {
    seek_Balle_trouve,
    seek_Recherche_en_cours,
-   seek_Pas_de_balle
+   seek_Pas_de_balle,
 } Seek_GolfBall_t;
 
 typedef enum
@@ -130,10 +132,13 @@ float fSpeedAdjustment(){
  */
 int32_t MOVE_getDistanceMM(int ID)
 {
-  int32_t d = ENCODER_Read(ID)*((float)1/MOVE_PULSE_PER_TURN)*MOVE_WHEEL_DIAMETER*PI;
-  Serial.print("distance = ");
-  Serial.println(d);
-  return d;
+   int32_t d = ENCODER_Read(ID)*((float)1/MOVE_PULSE_PER_TURN)*MOVE_WHEEL_DIAMETER*PI;
+   if(DEBUG_CAPTEUR)
+   {
+      Serial.print("distance = ");
+      Serial.println(d);
+   }
+   return d;
 }
 
 void MOVE_vSetSpeed()
@@ -150,40 +155,170 @@ void MOVE_vStop()
    MOTOR_SetSpeed(RIGHT, g_rightSpeed);
 }
 
+/**
+ * @brief retourne distance parcourure en mm
+ * 
+ * @param ID encode à mesurer.
+ * @return distance en millimètre
+ */
+float MOVE_getGuessDistancecMM(uint32_t timeMs, float speed)
+{
+  //Mesurer le temps
+  float estimate = ((float)timeMs/1000)*(float)MOVE_WHEEL_DIAMETER*speed;
+  return estimate;
+}
+
+/**
+ * @brief Essait d'estimer la distance parcouru pour accélérer ou ralentir.
+ * 
+ * @param finalSpeed Vitesse que le robot va atteindre.
+ * @param initialSpeed Vitesse actuel du robot.
+ * @param time Temps sur le quel il va accélérer
+ * @return int32_t Nouvelle distance, ne prend pas en compte les décimals de millimètre.
+ */
+int32_t MOVE_GuessDecelerationDistance(float finalSpeed, float initialSpeed, uint32_t time)
+{
+  int wait = MOVE_WAIT;
+  float deltaSpeed = finalSpeed - initialSpeed;
+  float speedIncrementation = deltaSpeed * (float) wait / (float) time;
+
+  float totalDistance = 0;
+  unsigned int iCount;
+  for(iCount =0; iCount < ((time/wait)+((time%wait)>0)); iCount++)
+  {
+    totalDistance += MOVE_getGuessDistancecMM(wait, initialSpeed + (iCount*speedIncrementation));
+  }
+  return (uint32_t)totalDistance;
+}
+
+/**
+ * @brief Accélère les deux roue inversément.
+ * 
+ * @param {type} finalSpeed 
+ * @param {type} time 
+ */
+void MOVE_vAccelerationInverted(float finalSpeed, unsigned int time)
+{
+  float deltaSpeed = finalSpeed - g_leftSpeed;
+  unsigned int wait = MOVE_WAIT;
+  float speedIncrementation = deltaSpeed * (float) wait / (float) time;
+
+  //S'assure que la roue droite soit à la même vitesse que la roue gauche.
+  g_rightSpeed = g_leftSpeed;
+  unsigned int iCount;
+  for(iCount =0; iCount < ((time/wait)+((time%wait)>0)); iCount++)
+  {
+    g_leftSpeed += speedIncrementation;
+    g_rightSpeed = -g_leftSpeed + fSpeedAdjustment();
+    MOTOR_SetSpeed(RIGHT, g_rightSpeed);
+    MOTOR_SetSpeed(LEFT, g_leftSpeed);
+    delay(wait);
+  }
+
+  g_leftSpeed = finalSpeed;
+  g_rightSpeed = finalSpeed;
+  MOTOR_SetSpeed(LEFT, g_leftSpeed);
+  MOTOR_SetSpeed(RIGHT, g_leftSpeed);
+}
+
+void MOVE_FinduPivot(int32_t distanceMM, float speed)
+{
+  distanceMM -= 10;
+  int32_t currentDistance[2];
+  currentDistance[LEFT] = MOVE_getDistanceMM(LEFT);
+  currentDistance[RIGHT] = MOVE_getDistanceMM(RIGHT);
+  while(currentDistance[LEFT] < distanceMM || abs(currentDistance[RIGHT]) < distanceMM)
+  {
+    float facteur[2];
+    facteur[LEFT] = (((float)distanceMM-(float)currentDistance[LEFT])/distanceMM);
+    facteur[RIGHT] = (((float)distanceMM-(float)abs(currentDistance[RIGHT]))/distanceMM);
+    g_leftSpeed = speed * facteur[LEFT];
+    g_rightSpeed = -speed * facteur[RIGHT];
+
+    if(g_leftSpeed < 0.125)
+    {
+      g_leftSpeed = 0.125;
+    }
+    if(g_rightSpeed > -0.125)
+    {
+      g_rightSpeed = -0.125;
+    }
+    
+    MOTOR_SetSpeed(LEFT, currentDistance[LEFT] < distanceMM ? g_leftSpeed: 0.0);
+    MOTOR_SetSpeed(RIGHT, currentDistance[RIGHT] < distanceMM ? g_rightSpeed: 0.0);
+
+   if(DEBUG_CAPTEUR)
+   {
+      Serial.print(g_leftSpeed);
+      Serial.print(" et vitesse RIGHT = ");
+      Serial.print(g_rightSpeed);
+      Serial.print("\n");
+   }
+    delay(1);
+    currentDistance[LEFT] = MOVE_getDistanceMM(LEFT);
+    currentDistance[RIGHT] = MOVE_getDistanceMM(RIGHT);
+  }
+  g_leftSpeed = 0;
+  g_rightSpeed = 0;
+  MOTOR_SetSpeed(LEFT, g_leftSpeed);
+  MOTOR_SetSpeed(RIGHT, g_rightSpeed);
+}
+
+void MOVE_Rotation2Roues(float angle)
+{
+  //Consigne de distance pour la roue opposé au virage afin d'arriver à l'angle voulu. 
+  int32_t angleEnDistance = ((2*PI*MOVE_LARGEUR_ROBOT*angle)/360)/2;
+  float speed = 0.15;
+  angleEnDistance -= MOVE_GuessDecelerationDistance(0.0, 0.15, 100);//Estimation de la distance requis pour ralentir.
+  //Reset les encodeurss
+  ENCODER_Reset(0);
+  ENCODER_Reset(1);
+
+  MOVE_vAccelerationInverted(speed, 100);
+  int32_t distanceActuelleL = MOVE_getDistanceMM(LEFT);
+
+  while((distanceActuelleL*100/angleEnDistance) < MOVE_SLOW_AT_PERCENT)
+  {
+    distanceActuelleL = MOVE_getDistanceMM(LEFT);
+    //ajuste la vitesse de la roue droite
+    g_rightSpeed = -speed;
+    MOTOR_SetSpeed(RIGHT, g_rightSpeed);
+  }
+
+  MOVE_FinduPivot(angleEnDistance, speed);
+
+}
 
 
 void MOVE_vAvancer(float fVitesse, int32_t i32Distance_mm,unsigned int accelerationTime = 125)
 {
-  ENCODER_Reset(0);
-  ENCODER_Reset(1);
+   ENCODER_Reset(0);
+   ENCODER_Reset(1);
 
-  g_leftSpeed = fVitesse;
-  MOTOR_SetSpeed(LEFT,g_leftSpeed);
+   g_leftSpeed = fVitesse;
+   MOTOR_SetSpeed(LEFT,g_leftSpeed);
 
-   if(i32Distance_mm  > 0)
+   if(fVitesse < 0)
    {
-      while(MOVE_getDistanceMM(LEFT) < i32Distance_mm)
+      if(i32Distance_mm > 0)
+      {
+         i32Distance_mm = -i32Distance_mm;
+      }
+   }
+
+   while(MOVE_getDistanceMM(LEFT) < i32Distance_mm)
+   {
+      if(DEBUG_CAPTEUR)
       {
          Serial.print("Distance fait = ");
          Serial.print(MOVE_getDistanceMM(LEFT));
          Serial.println(" mm");
-         g_rightSpeed = fVitesse + fSpeedAdjustment();
-         MOTOR_SetSpeed(RIGHT, g_rightSpeed);
-         delay(50);
       }
-  }
-  else
-  {
-      while(MOVE_getDistanceMM(LEFT) > i32Distance_mm)
-      {
-         Serial.print("Distance fait = ");
-         Serial.print(MOVE_getDistanceMM(LEFT));
-         Serial.println(" mm");
-         g_rightSpeed = fVitesse - fSpeedAdjustment();
-         MOTOR_SetSpeed(RIGHT, g_rightSpeed);
-         delay(50);
-      }
-  }
+      g_rightSpeed = fVitesse + fSpeedAdjustment();
+      MOTOR_SetSpeed(RIGHT, g_rightSpeed);
+      delay(50);
+   }
+  
    MOVE_vStop();
 }
 
@@ -227,16 +362,16 @@ bool getBall(){
    if(bRet == true)
    {
       Serial.print("La balle est icitte meyn!\n");
-      MOVE_vStop();
-      delay(50);
       ballGrab(130);
-      delay(500);
-      distance_From_Line += ENCODER_Read(LEFT);  
+      delay(100);
+      MOVE_vStop();
    }
    else
    {
       MOVE_vStop();
    }
+   distance_From_Line += ENCODER_Read(LEFT);  
+   retourLigne(angle_From_Line, distance_From_Line);
    return bRet;
 }
 
@@ -452,9 +587,54 @@ bool pixyGetLigne(Vector* ligne_retour)
          Serial.print(buf);
          Vecteur[0].print();
       }
+      else if(NB_VECTOR_TO_COMPARE == 1)
+      {
+         bRet = true;
+         *ligne_retour = Vecteur[0];
+         sprintf(buf, "ligne: ");
+         Serial.print(buf);
+         Vecteur[0].print();
+      }
       
    }
 
+   return bRet;
+}
+
+/**
+ * @brief Get the Pixy Bar Code object
+ * 
+ * @param depart 
+ * @return true 
+ * @return false 
+ */
+bool GetPixyBarCode(Barcode* depart)
+{
+   bool bRet = false;
+   int8_t pixy_line = pixy.line.getMainFeatures(LINE_BARCODE, true);
+   if(pixy_line & LINE_BARCODE)
+   {
+      if(pixy.line.barcodes[0].m_code == 6)
+      {
+         bRet = true;
+         memcpy(depart, &pixy.line.barcodes[0], sizeof(Barcode));
+      }
+   }
+   return bRet;
+}
+
+/**
+ * @brief Vérifie si le barcode est à au moins (20cm?) de distance.
+ * 
+ */
+bool bIsBarCodeClose(Barcode depart)
+{
+   bool bRet = false;
+   if(depart.m_y > ValueFromPercent(LINE_HEIGHT, 80))
+   {
+      Serial.print("Je suis proche du barcode\n");
+      bRet = true;
+   }
    return bRet;
 }
 
@@ -488,22 +668,34 @@ void getCloserToLine()
          lignePerdu = true;
          Serial.print("Je suis en avant de la ligne\n");
          MOVE_vStop();
-         delay(5000);
       }
       MOVE_vSetSpeed();
       delay(20);
    }
 }
 
-bool findLine()
+void retourLigne(int angle, int distance)
+{
+   Serial.print("retour a la ligne avec Angle//Distance = ");
+   Serial.print(angle);
+   Serial.print(" // ");
+   Serial.print(distance);
+   MOVE_Rotation2Roues(360-angle);
+   //MOVE_vAvancer(0.20,distance);
+}
+
+bool findLine(bool avance = true)
 {
    Vector ligne;
    bool ligneTrouve = false;
-   MOVE_vAvancer(0.2, 150);
+   if(avance == true)
+   {
+      MOVE_vAvancer(0.2, 200);
+   }
    int temps_max = 20;
-   int i = 0;
-
-   for(i = 0; i < temps_max; i++)
+   ENCODER_Reset(LEFT);
+   ENCODER_Reset(RIGHT);
+   while(ENCODER_Read(LEFT) < FULL_TURN)
    {
       g_leftSpeed = -0.13;
       g_rightSpeed = 0.13;
@@ -546,9 +738,34 @@ void GetAjustementX0(float* left, float* right, Vector ligne)
    
 }
 
+void AucunVecteur(Vector previousLine, int* angle)
+{
+   if(*angle == 0)
+      {
+         ENCODER_Reset(LEFT);
+         ENCODER_Reset(RIGHT);
+      }
+      //On ne voit plus de ligne
+      if(MOVE_getDistanceMM(LEFT) > FULL_TURN)
+      {
+         MOVE_vAvancer(-0.2, 100);
+         ENCODER_Reset(LEFT);
+         ENCODER_Reset(RIGHT);
+      }
+      else
+      {
+         g_leftSpeed = 0.13;
+         g_rightSpeed = -0.13;
+         Serial.print("Pas de vecteur\n");
+      }
+}
+
 Suiveur_position_t mode_ligne()
 {
    Suiveur_position_t suiveur_ligne = suiveur_rien;
+   static int angle_PasDeLigne = 0;       //Angle fait depuis que la ligne n'est pas vu.
+   static Vector previousLine = {0};
+   Barcode depart;
    Vector ligne;
 	// print all vectors
    if(pixyGetLigne(&ligne) == true)
@@ -588,16 +805,31 @@ Suiveur_position_t mode_ligne()
             g_rightSpeed = 0.15;
          }
       }
+      previousLine = ligne;
+   }
+   else if(isVectorVertical(previousLine) == true)
+   {
+      suiveur_ligne = suiveur_but;
    }
    else
    {
-      g_leftSpeed = 0.13;
-      g_rightSpeed = -0.13;
-      Serial.print("Pas de vecteur\n");
+      AucunVecteur(previousLine, &angle_PasDeLigne);  
    }
 
    //Ajouter les barcodes ici
-   //TODO
+   if(GetPixyBarCode(&depart) == true)
+   {
+      if(bIsBarCodeClose(depart) == true)
+      {
+         MOVE_vStop();
+         MOVE_Rotation2Roues(270);
+         MOVE_vAvancer(0.2, 200);
+         delay(200);
+         ballDrop();
+         MOVE_vAvancer(-0.2, 200);
+         suiveur_ligne = suiveur_depart;
+      }
+   }
    MOVE_vSetSpeed();
    delay(100);
    return suiveur_ligne;
@@ -684,15 +916,14 @@ Seek_GolfBall_t Find_Golf_Ball(){
 	}
 	else
 	{
-      int rotation_mm = (2*PI*MOVE_LARGEUR_ROBOT*180)/360;
       g_leftSpeed = -0.13;
       g_rightSpeed = 0.13;
-      if(MOVE_getDistanceMM(LEFT) > rotation_mm)
+      if(MOVE_getDistanceMM(LEFT) > FULL_TURN)
       {
          Serial.print("Pas de balle trouve, tour complet de fait\n");
          tRet = seek_Pas_de_balle;
       }
-      angle_From_Line = rotation_mm;
+      angle_From_Line = (abs(MOVE_getDistanceMM(LEFT))*360)/(2*PI*MOVE_LARGEUR_ROBOT);
 	}
 
 	MOVE_vSetSpeed();
@@ -820,7 +1051,10 @@ void setup(){
    changeMode(camera_detecteur_blocks); 
    delay(1000);
    SOFT_TIMER_Update();
+   Golfotron_state = Golfotron_Seek;
+   currently_carrying = true;
 }
+
 
 void logique()
 {
@@ -844,16 +1078,21 @@ void logique()
          //Configuration initiale du mode
          if(Golfotron_PreviousState != Golfotron_state)
          {
+            bool bLigne = false;
             changeMode(camera_suiveur_ligne);
+            ENCODER_Reset(LEFT);
+            ENCODER_Reset(RIGHT);
             //Ne trouve pas de ligne à suivre :(
-            if(findLine() == false && Golfotron_PreviousState == Golfotron_idle)
+            while((bLigne == false) && (MOVE_getDistanceMM(LEFT) > FULL_TURN) && Golfotron_PreviousState == Golfotron_idle)
             {
-               Serial.print("Aucune ligne de trouvé\n");
+               bLigne = findLine(false);
+            }
+            if(bLigne == true)
+            {
+               Serial.print("Aucune ligne de trouve\n");
                Golfotron_state = Golfotron_idle;
                break; 
             }
-            ENCODER_Reset(LEFT);
-            ENCODER_Reset(RIGHT);
             SOFT_TIMER_Enable(TIMER_ID_STATE);
          }
          Suiveur_position_t suiveur_position = mode_ligne();
@@ -864,10 +1103,13 @@ void logique()
                Golfotron_state = Golfotron_Eliminate;
             }
          }
+         else if(suiveur_position == suiveur_but)
+         {
+            Golfotron_PreviousState = Golfotron_Fin_De_Ligne;
+         }
          else if(suiveur_position == suiveur_depart)
          {
             //Make a 90 degre turn to the opposite of the barcodes
-            //TODO;
             Golfotron_state = Golfotron_idle;
          }
          break;
@@ -908,6 +1150,12 @@ void logique()
          }
          break;
       }
+      //Le robot doit passer en mode cherche balle
+      case Golfotron_Fin_De_Ligne:
+      {
+         Golfotron_state = Golfotron_Ambush_golf_ball;
+         MOVE_Rotation2Roues(180);
+      }
       //Mode inconnu
       default:
       {
@@ -921,37 +1169,19 @@ void logique()
 void loop() {
   
    SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
-   //logique();
-
-   if(currently_carrying == false)
-   {
-      if(Find_Golf_Ball() == seek_Balle_trouve)
-      {
-         MOVE_vStop();
-         delay(2000);
-         getBall();
-      }
-   }
-   else
-   {
-      MOVE_vStop();
-   }
-
-   //
-   //getBall();
-   //CAPTEUR_distanceIR(A0);
-   //3demo_claw();
-   //delay(200);
-   /*
-   MOTOR_SetSpeed(LEFT, 0.13);
-   MOTOR_SetSpeed(RIGHT, -0.13);
-
-   while(1)
-   {
-      digitalWrite(40, 1);
-      MOVE_getDistanceMM(LEFT);
-      MOVE_getDistanceMM(RIGHT);
-      delay(500);
-   }*/
+   logique();
+   // if(currently_carrying == false)
+   // {
+   //    if(Find_Golf_Ball() == seek_Balle_trouve)
+   //    {
+   //       MOVE_vStop();
+   //       delay(2000);
+   //       getBall();
+   //    }
+   // }
+   // else
+   // {
+   //    MOVE_vStop();
+   // }
 }
 
