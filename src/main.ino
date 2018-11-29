@@ -702,7 +702,9 @@ void retourLigne(int angle, int distance)
 
 bool findLine(bool avance = true)
 {
+   Serial.print("fonction findline\n");
    Vector ligne = {0};
+   int iCompteur = 0;
    bool ligneTrouve = false;
    if(avance == true)
    {
@@ -728,7 +730,7 @@ bool findLine(bool avance = true)
             Serial.print("Le robot est aligne avec la ligne\n");
             return ligneTrouve;
          }
-         else if(avance == false)
+         else if(avance == false && iCompteur > 4)
          {
             Serial.print("avance\n");
             float ratio = (float)ligne.m_x0/ValueFromPercent(LINE_WIDTH, 50);
@@ -742,7 +744,24 @@ bool findLine(bool avance = true)
                g_leftSpeed = 0.2;
                g_rightSpeed = (2.0-ratio)*0.2;
             }
-            delay(100);
+            if(g_rightSpeed < 0.1)
+            {
+               g_rightSpeed = 0.1;
+            }
+            if(g_leftSpeed < 0.1)
+            {
+               g_leftSpeed = 0.1;
+            }
+            MOVE_vSetSpeed();
+            delay(200);
+            ENCODER_Reset(LEFT);
+            ENCODER_Reset(RIGHT);
+            MOVE_vStop();
+            iCompteur = 0;
+         }
+         else
+         {
+            iCompteur++;
          }
       }
       delay(50);
@@ -958,7 +977,7 @@ void CheckGolfBall()
 void ReleaseBall()
 {
    MOVE_vStop();
-   MOVE_Rotation2Roues(260);
+   MOVE_Rotation2Roues(300);
    MOVE_vAvancer(0.2, 200);
    delay(200);
    ballDrop();
@@ -1012,8 +1031,10 @@ bool StopWithGreen()
 
 void updateGolfotron_State()
 {
-   Serial.print("Check timer \n");
-   if(((abs((MOVE_getDistanceMM(LEFT)))) > 300) && (currently_carrying == false) && (Golfotron_state == Golfotron_Seek))
+   Serial.print("Check timer: ");
+   Serial.println(MOVE_getDistanceMM(LEFT));
+
+   if(((abs((MOVE_getDistanceMM(LEFT)))) > 200) && (currently_carrying == false) && (Golfotron_state == Golfotron_Seek))
    {
       Serial.print("Cherche la balle\n");
       Golfotron_state = Golfotron_Ambush_golf_ball;
@@ -1023,7 +1044,7 @@ void updateGolfotron_State()
       Serial.print("Ferme le timer\n");
       //SOFT_TIMER_Disable(TIMER_ID_STATE);
    }
-   SOFT_TIMER_Enable(TIMER_ID_STATE);
+   //SOFT_TIMER_Enable(TIMER_ID_STATE);
 }
 
 void Golfotron_depart()
@@ -1043,12 +1064,13 @@ void changeMode(camera_mode_t mode)
       Serial.print("Mode suiveur de ligne\n");
       delay(20);
       changeLight = pixy.setCameraBrightness(40);
+      Serial.print("Mode suiveur de ligne 2\n");
 		break;
 	case camera_detecteur_blocks:
 		pixy.changeProg("color_connected_components");
       Serial.print("Mode block\n");
       delay(20);
-      pixy.setCameraBrightness(28);
+      pixy.setCameraBrightness(40);
 		break;
 	default:
 		pixy.changeProg("color_connected_components");
@@ -1060,13 +1082,14 @@ void changeMode(camera_mode_t mode)
    if(changeProg != PIXY_RESULT_OK)
    {
       Serial.print("Erro while changing prog\n");
-      changeMode(mode);
+      //changeMode(mode);
    }
    if(changeLight == PIXY_RESULT_ERROR)
    {
       Serial.print("Erro while changing light\n");
-      changeMode(mode);
+      //changeMode(mode);
    }
+   Serial.print("Mode suiveur de ligne 3\n");
 }
 
 void setup_timers()
@@ -1077,7 +1100,7 @@ void setup_timers()
   SOFT_TIMER_SetDelay(TIMER_ID_GO, 5000);
   SOFT_TIMER_SetCallback(TIMER_ID_GO, &Golfotron_depart);
   SOFT_TIMER_SetRepetition(TIMER_ID_GO, 1);
-  SOFT_TIMER_SetDelay(TIMER_ID_STATE, 1000);
+  SOFT_TIMER_SetDelay(TIMER_ID_STATE, 500);
   SOFT_TIMER_SetRepetition(TIMER_ID_STATE, -1);
   SOFT_TIMER_SetCallback(TIMER_ID_STATE, &updateGolfotron_State);
 }
@@ -1120,11 +1143,13 @@ void setup(){
       delay(100);
    };
    changeMode(camera_detecteur_blocks); 
+   //MOVE_vAvancer(0.2, 600);
 }
 
 
 void logique()
 {
+   static int i = 0;
    Serial.print("Golfotron Mode = ");
    Serial.println(Golfotron_state);
    switch(Golfotron_state)
@@ -1147,10 +1172,12 @@ void logique()
          {
             bool bLigne = false;
             changeMode(camera_suiveur_ligne);
+            Serial.print("try to reset the encoder\n");
             ENCODER_Reset(LEFT);
             ENCODER_Reset(RIGHT);
+            Serial.print("Encoder reseted\n");
             //Ne trouve pas de ligne à suivre :(
-            while((bLigne == false) && (MOVE_getDistanceMM(LEFT) > FULL_TURN) && Golfotron_PreviousState == Golfotron_idle)
+            while((bLigne == false) && (MOVE_getDistanceMM(LEFT) > FULL_TURN) && (Golfotron_PreviousState == Golfotron_idle))
             {
                bLigne = findLine(false);
             }
@@ -1257,6 +1284,7 @@ void logique()
 void loop() {
   
    SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
+   //mode_ligne();
    logique();
    //demo_claw();
    //delay(100);
