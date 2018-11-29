@@ -325,7 +325,7 @@ void MOVE_vAvancer(float fVitesse, int32_t i32Distance_mm,unsigned int accelerat
 
 /******************* Fonction pour servomoteur  ************************/
 
-void ballGrab(int angle){
+void ballGrab(int angle = 58){
   SERVO_Enable(0);
   SERVO_SetAngle(0, angle);
   SOFT_TIMER_Enable(TIMER_ID_DROP);
@@ -363,7 +363,8 @@ bool getBall(){
    if(bRet == true)
    {
       Serial.print("La balle est icitte meyn!\n");
-      ballGrab(130);
+      delay(50);
+      ballGrab(58);
       delay(100);
       MOVE_vStop();
    }
@@ -419,7 +420,7 @@ void demo_claw()
    ballDrop();
    }
    if (i==15){
-   ballGrab(70);
+   ballGrab(60);
    }
    if (i==20){
    ballDrop();
@@ -730,7 +731,18 @@ bool findLine(bool avance = true)
          else if(avance == false)
          {
             Serial.print("avance\n");
-            MOVE_vAvancer(0.2, 100);
+            float ratio = (float)ligne.m_x0/ValueFromPercent(LINE_WIDTH, 50);
+            if(ratio < 1.0)
+            {
+               g_leftSpeed = ratio * 0.2;
+               g_rightSpeed = 0.2;
+            }
+            else
+            {
+               g_leftSpeed = 0.2;
+               g_rightSpeed = (2.0-ratio)*0.2;
+            }
+            delay(100);
          }
       }
       delay(50);
@@ -803,8 +815,8 @@ Suiveur_position_t mode_ligne()
       {
          //Robot doit revenir vers la ligne
          Serial.print("Le robot est trop loin de la ligne\n");
-         getCloserToLine();
-         findLine();
+         //getCloserToLine();
+         findLine(false);
          MOVE_vStop();
       }
       else
@@ -917,7 +929,8 @@ Seek_GolfBall_t Find_Golf_Ball(){
 	{
       g_leftSpeed = -0.13;
       g_rightSpeed = 0.13;
-      if(MOVE_getDistanceMM(LEFT) > FULL_TURN)
+      Serial.print(MOVE_getDistanceMM(LEFT));
+      if(abs(MOVE_getDistanceMM(LEFT)) > FULL_TURN)
       {
          Serial.print("Pas de balle trouve, tour complet de fait\n");
          tRet = seek_Pas_de_balle;
@@ -979,7 +992,8 @@ bool StopWithGreen()
       else
       {
          bRet = true;
-         MOVE_vStop();
+         g_leftSpeed = 0.2;
+         g_rightSpeed = 0.2 + fSpeedAdjustment();
       }
    }
    else
@@ -998,7 +1012,8 @@ bool StopWithGreen()
 
 void updateGolfotron_State()
 {
-   if((MOVE_getDistanceMM(LEFT) > 300) && (currently_carrying == false) && (Golfotron_state == Golfotron_Seek))
+   Serial.print("Check timer \n");
+   if(((abs((MOVE_getDistanceMM(LEFT)))) > 300) && (currently_carrying == false) && (Golfotron_state == Golfotron_Seek))
    {
       Serial.print("Cherche la balle\n");
       Golfotron_state = Golfotron_Ambush_golf_ball;
@@ -1006,8 +1021,9 @@ void updateGolfotron_State()
    else if(Golfotron_state != Golfotron_Seek)
    {
       Serial.print("Ferme le timer\n");
-      SOFT_TIMER_Disable(TIMER_ID_STATE);
+      //SOFT_TIMER_Disable(TIMER_ID_STATE);
    }
+   SOFT_TIMER_Enable(TIMER_ID_STATE);
 }
 
 void Golfotron_depart()
@@ -1242,6 +1258,8 @@ void loop() {
   
    SOFT_TIMER_Update(); // A decommenter pour utiliser des compteurs logiciels
    logique();
+   //demo_claw();
+   //delay(100);
    //mode_ligne();
    // if(currently_carrying == false)
    // {
