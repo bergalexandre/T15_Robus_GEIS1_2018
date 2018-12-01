@@ -68,14 +68,15 @@ typedef enum
 {
    seek_Balle_trouve,
    seek_Recherche_en_cours,
-   seek_Pas_de_balle,
+   seek_Pas_de_balle
 } Seek_GolfBall_t;
 
 typedef enum
 {
    suiveur_but,
    suiveur_depart,
-   suiveur_rien
+   suiveur_rien,
+   suiveur_Check_20cm
 } Suiveur_position_t;
 /*******************************************************************************
  * Prototypes locaux
@@ -357,13 +358,14 @@ bool getBall(){
          //On a probablement perdu la balle.
          Serial.print("Where did the ball go?\n");
          bRet = false;
+         MOVE_vAvancer(-0.2, 300);
          break;
       }
    }
    if(bRet == true)
    {
       Serial.print("La balle est icitte meyn!\n");
-      delay(50);
+      delay(80);
       ballGrab(58);
       delay(100);
       MOVE_vStop();
@@ -700,6 +702,29 @@ void retourLigne(int angle, int distance)
    //MOVE_vAvancer(0.20,distance);
 }
 
+void GetAjustementX0(float* left, float* right, Vector ligne)
+{
+   //En dessous de 1 ligne à gauche, sinon à droite   
+   float position_ligne = (float)ligne.m_x0/(ValueFromPercent(LINE_WIDTH, 50));
+   float vitesseMax = 0.20;
+
+   Serial.print("Position ligne = ");
+   Serial.println(position_ligne);
+   if(position_ligne < 1.0)
+   {
+      //Ligne est à gauche
+      *left = (float)((float)position_ligne)*(vitesseMax);
+      *right = vitesseMax;
+   }
+   else
+   {
+      //Ligne est à droite
+      *left = vitesseMax;
+      *right = (float)((float)2.0-position_ligne)*vitesseMax;
+   }
+   
+}
+
 bool findLine(bool avance = true)
 {
    Serial.print("fonction findline\n");
@@ -733,31 +758,20 @@ bool findLine(bool avance = true)
          else if(avance == false && iCompteur > 4)
          {
             Serial.print("avance\n");
-            float ratio = (float)ligne.m_x0/ValueFromPercent(LINE_WIDTH, 50);
-            if(ratio < 1.0)
+            while(isVectorVertical(ligne) == false)
             {
-               g_leftSpeed = ratio * 0.2;
-               g_rightSpeed = 0.2;
+               if(pixyGetLigne(&ligne))
+               {
+                  GetAjustementX0(&g_leftSpeed, &g_rightSpeed, ligne);
+                  MOVE_vSetSpeed();
+                  delay(100);
+               }
             }
-            else
-            {
-               g_leftSpeed = 0.2;
-               g_rightSpeed = (2.0-ratio)*0.2;
-            }
-            if(g_rightSpeed < 0.1)
-            {
-               g_rightSpeed = 0.1;
-            }
-            if(g_leftSpeed < 0.1)
-            {
-               g_leftSpeed = 0.1;
-            }
-            MOVE_vSetSpeed();
-            delay(200);
             ENCODER_Reset(LEFT);
             ENCODER_Reset(RIGHT);
             MOVE_vStop();
             iCompteur = 0;
+            return true;
          }
          else
          {
@@ -768,29 +782,6 @@ bool findLine(bool avance = true)
    }
    MOVE_vStop();
    return ligneTrouve;
-}
-
-void GetAjustementX0(float* left, float* right, Vector ligne)
-{
-   //En dessous de 1 ligne à gauche, sinon à droite   
-   float position_ligne = (float)ligne.m_x0/(ValueFromPercent(LINE_WIDTH, 50));
-   float vitesseMax = 0.20;
-
-   Serial.print("Position ligne = ");
-   Serial.println(position_ligne);
-   if(position_ligne < 1.0)
-   {
-      //Ligne est à gauche
-      *left = (float)((float)position_ligne)*(vitesseMax);
-      *right = vitesseMax;
-   }
-   else
-   {
-      //Ligne est à droite
-      *left = vitesseMax;
-      *right = (float)((float)2.0-position_ligne)*vitesseMax;
-   }
-   
 }
 
 void AucunVecteur(Vector previousLine, int* angle)
@@ -820,6 +811,13 @@ Suiveur_position_t mode_ligne()
    Barcode depart;
    Vector ligne = {0};
 	// print all vectors
+   if(MOVE_getDistanceMM(LEFT) > 800 && currently_carrying == false)
+   {
+      ENCODER_Reset(LEFT);
+      ENCODER_Reset(RIGHT);
+      return suiveur_Check_20cm;
+   }
+
    if(pixyGetLigne(&ligne) == true)
    {
       if(isVectorVertical(ligne))
@@ -840,19 +838,13 @@ Suiveur_position_t mode_ligne()
       }
       else
       { 
-         AucunVecteur(previousLine, &angle_PasDeLigne);     
+         findLine(false);
       }
       previousLine = ligne;
    }
-   else if(isVectorVertical(previousLine) == true)
-   {
-      Serial.print("previous line\n");
-      suiveur_ligne = suiveur_but;
-      memset(&previousLine, 0, sizeof(Vector));
-   }
    else
    {
-      AucunVecteur(previousLine, &angle_PasDeLigne);  
+      findLine(false);
    }
 
    //Ajouter les barcodes ici
@@ -898,7 +890,7 @@ bool GetBlock(Block* block, int signature)
 Seek_GolfBall_t Find_Golf_Ball(){
    Seek_GolfBall_t tRet = seek_Recherche_en_cours;
    Block balle;
-   
+
 	if (GetBlock(&balle, CCC_SIG1) == true) //rentre s'il y a un objet de détecté
 	{
 		float ratio;
@@ -1038,11 +1030,6 @@ void updateGolfotron_State()
    {
       Serial.print("Cherche la balle\n");
       Golfotron_state = Golfotron_Ambush_golf_ball;
-   }
-   else if(Golfotron_state != Golfotron_Seek)
-   {
-      Serial.print("Ferme le timer\n");
-      //SOFT_TIMER_Disable(TIMER_ID_STATE);
    }
    //SOFT_TIMER_Enable(TIMER_ID_STATE);
 }
@@ -1211,6 +1198,10 @@ void logique()
             Serial.print("Change en mode carre vert\n");
             Golfotron_state = Golfotron_retour_a_la_base;
          }
+         else if(suiveur_position == suiveur_Check_20cm)
+         {
+            Golfotron_state = Golfotron_Ambush_golf_ball;
+         }
          break;
       }
       //Le robot doit détecter la balle de gofl
@@ -1239,7 +1230,13 @@ void logique()
       //Le robot doit grab la balle
       case Golfotron_Eliminate:
       {
-         if(getBall() == false)
+         int Essai = 0;
+         if( currently_carrying == false )
+         {
+            getBall();
+            Essai++;
+         }
+         if( currently_carrying == false && Essai > 0)
          {
             Golfotron_state = Golfotron_Ambush_golf_ball;
          }
